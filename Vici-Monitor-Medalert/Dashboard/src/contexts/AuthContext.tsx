@@ -25,8 +25,18 @@ export const AuthProvider = ({ children }) => {
 
     const checkUser = async () => {
         try {
-            // This endpoint will be created to verify the token from the cookie
-            const response = await fetch('/api/auth/verify'); 
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setUser(null);
+                return;
+            }
+            
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/verify`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            }); 
             if (response.ok) {
                 const data = await response.json();
                 if(data.user) setUser(data.user);
@@ -45,7 +55,8 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            await fetch('/api/auth/logout');
+            localStorage.removeItem('token');
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/logout`);
             setUser(null);
         } catch(error) {
             console.error("Logout failed", error);
