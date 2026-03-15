@@ -8,171 +8,145 @@ const StatsModel = require('../../database/models/Stats');
 let lastCpuInfo = null;
 
 function getCpuUsage() {
-  const cpus = os.cpus();
-  let totalIdle = 0;
-  let totalTick = 0;
-
-  for (const cpu of cpus) {
-    for (const type in cpu.times) {
-      totalTick += cpu.times[type];
+    const cpus = os.cpus();
+    let totalIdle = 0, totalTick = 0;
+    for (const cpu of cpus) {
+        for (const type in cpu.times) totalTick += cpu.times[type];
+        totalIdle += cpu.times.idle;
     }
-    totalIdle += cpu.times.idle;
-  }
-
-  const avgIdle = totalIdle / cpus.length;
-  const avgTotal = totalTick / cpus.length;
-
-  let usagePercentage = 0;
-  if (lastCpuInfo) {
-    const idleDifference = avgIdle - lastCpuInfo.avgIdle;
-    const totalDifference = avgTotal - lastCpuInfo.avgTotal;
-    if (totalDifference > 0) {
-      usagePercentage = 100 - (100 * idleDifference / totalDifference);
+    const avgIdle = totalIdle / cpus.length;
+    const avgTotal = totalTick / cpus.length;
+    let usagePercentage = 0;
+    if (lastCpuInfo) {
+        const idleDifference = avgIdle - lastCpuInfo.avgIdle;
+        const totalDifference = avgTotal - lastCpuInfo.avgTotal;
+        if (totalDifference > 0) {
+            usagePercentage = 100 - (100 * idleDifference / totalDifference);
+        }
     }
-  }
-
-  lastCpuInfo = { avgIdle, avgTotal };
-  return Math.max(0, Math.min(100, usagePercentage));
+    lastCpuInfo = { avgIdle, avgTotal };
+    return Math.max(0, Math.min(100, usagePercentage));
 }
 
 function createPerformanceBar(value, width = 10) {
-  const percentage = Math.min(100, value) / 100;
-  const filled = Math.round(width * percentage);
-  const empty = width - filled;
-  const bar = chalk.yellow('█'.repeat(filled)) + chalk.gray('░'.repeat(empty));
-  return `${bar} ${value.toFixed(1)}%`;
+    const percentage = Math.min(100, value) / 100;
+    const filled = Math.round(width * percentage);
+    const bar = chalk.yellow('█'.repeat(filled)) + chalk.gray('░'.repeat(width - filled));
+    const percentageString = `${value.toFixed(1)}%`.padStart(7, ' ');
+    return `${bar} ${percentageString}`;
 }
 
 module.exports = async function dashboard() {
-  process.stdout.write('\x1b[?25l'); // Hide cursor
+    process.stdout.write('\x1b[?25l'); // Hide cursor
+    if (process.stdout.columns < 120 || process.stdout.rows < 40) {
+        console.error(chalk.red('Terminal size must be at least 120x40 for this dashboard.'));
+        process.exit(1);
+    }
 
-  try {
-    await dbConnection.connect();
-  } catch (e) {
-    console.error(chalk.red('Fatal Error: Could not connect to the database.'));
-    console.error(e);
-    process.exit(1);
-  }
-
-  const startTime = new Date();
-
-  const cleanup = async () => {
-    await dbConnection.close();
-    console.clear();
-    process.stdout.write('\x1b[?25h'); // Show cursor
-    process.exit(0);
-  };
-
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
-
-  const mainLoop = async () => {
     try {
-      // --- 1. DATA FETCHING ---
-      const latest = await StatsModel.getLatestRecord();
-      const summary = latest ? JSON.parse(latest.raw_data).summary || {} : {};
-      const meta = latest ? JSON.parse(latest.raw_data).meta || {} : {};
+        await dbConnection.connect();
+    } catch (e) {
+        process.exit(1);
+    }
 
-      const {
-        agentsLoggedIn = 0,
-        agentsInCalls = 0,
-        callsWaiting = 0,
-        activeCalls = 0,
-      } = summary;
-      const {
-        dialLevel = 'NORMAL',
-        dialableLeads = 0
-      } = meta;
+    const startTime = new Date();
+    const cleanup = async () => {
+        await dbConnection.close();
+        console.clear();
+        process.stdout.write('\x1b[?25h');
+        process.exit(0);
+    };
 
-      // --- 2. SYSTEM METRICS ---
-      const uptimeMs = new Date() - startTime;
-      const uptime = `${String(Math.floor(uptimeMs / 3600000)).padStart(2, '0')}h ${String(Math.floor((uptimeMs % 3600000) / 60000)).padStart(2, '0')}m ${String(Math.floor((uptimeMs % 60000) / 1000)).padStart(2, '0')}s`;
-      const memUsage = (1 - os.freemem() / os.totalmem()) * 100;
-      const cpuUsage = getCpuUsage();
+    process.on('SIGINT', cleanup).on('SIGTERM', cleanup);
 
-      // --- 3. UI RENDER ---
-      console.clear();
+    const mainLoop = async () => {
+        try {
+            const latest = await StatsModel.getLatestRecord();
+            const summary = latest ? JSON.parse(latest.raw_data).summary || {} : {};
+            const meta = latest ? JSON.parse(latest.raw_data).meta || {} : {};
 
-      const artLines = newAscii.split('\n').map(line => chalk.white(line));
-      const artWidth = artLines[0] ? artLines[0].replace(/\u001b\[[0-9;]*m/g, '').length : 55;
+            const {
+                agentsLoggedIn = 0, agentsInCalls = 0, callsWaiting = 0, activeCalls = 0
+            } = summary;
+            const { dialLevel = 'NORMAL', dialableLeads = 0 } = meta;
 
-      const dataRows = [
-        { label: 'System Status', header: true },
-        { label: 'Server', value: 'ONLINE', color: chalk.green },
-        { label: 'Database', value: 'CONNECTED', color: chalk.green },
-        { label: 'Extension', value: 'ACTIVE', color: chalk.green },
-        { label: 'Uptime', value: uptime },
-        { spacer: true },
-        { label: 'Call Center', header: true },
-        { label: 'Active Calls', value: activeCalls },
-        { label: 'Agents Logged In', value: agentsLoggedIn },
-        { label: 'Agents In Calls', value: agentsInCalls },
-        { label: 'Calls Waiting', value: callsWaiting, color: chalk.yellow },
-        { label: 'Dial Level', value: dialLevel },
-        { spacer: true },
-        { label: 'Performance', header: true },
-        { label: 'CPU', value: createPerformanceBar(cpuUsage) },
-        { label: 'Memory', value: createPerformanceBar(memUsage) },
-      ];
+            const uptimeMs = new Date() - startTime;
+            const uptime = `${String(Math.floor(uptimeMs / 3600000)).padStart(2, '0')}h ${String(Math.floor((uptimeMs % 3600000) / 60000)).padStart(2, '0')}m ${String(Math.floor((uptimeMs % 60000) / 1000)).padStart(2, '0')}s`;
+            const memUsage = (1 - os.freemem() / os.totalmem()) * 100;
+            const cpuUsage = getCpuUsage();
 
-      const dataColumnWidth = 38; 
+            console.clear();
 
-      const output = [];
-      const numLines = Math.max(artLines.length, dataRows.length + 2);
+            const artLines = newAscii.split('\n').map(line => chalk.white(line));
+            const artWidth = 60;
 
-      for (let i = 0; i < numLines; i++) {
-        const artLine = artLines[i] ? artLines[i].padEnd(artWidth) : ' '.repeat(artWidth);
-        let dataLine = '';
-        if (dataRows[i]) {
-          const row = dataRows[i];
-          if (row.header) {
-            dataLine = chalk.cyan.bold(row.label);
-          } else if (row.spacer) {
-            dataLine = '';
-          } else {
-            const labelStr = `  ${row.label}`;
-            if (row.label === 'CPU' || row.label === 'Memory') {
-                const labelPart = chalk.gray(labelStr.padEnd(16));
-                dataLine = `${labelPart}${row.value}`;
-            } else {
-                const valueStr = row.value.toString();
-                const labelPart = chalk.gray(labelStr);
-                const valuePart = row.color ? row.color(valueStr) : chalk.white(valueStr);
-                const paddingWidth = dataColumnWidth - labelStr.length - valueStr.length;
-                const padding = ' '.repeat(Math.max(1, paddingWidth));
-                dataLine = `${labelPart}${padding}${valuePart}`;
+            const dataRows = [
+                { label: 'System Status', header: true },
+                { label: 'Server', value: 'ONLINE', color: chalk.green },
+                { label: 'Database', value: 'CONNECTED', color: chalk.green },
+                { label: 'Extension', value: 'ACTIVE', color: chalk.green },
+                { label: 'Uptime', value: uptime },
+                { spacer: true },
+                { label: 'Call Center', header: true },
+                { label: 'Active Calls', value: activeCalls },
+                { label: 'Agents Logged In', value: agentsLoggedIn },
+                { label: 'Agents In Calls', value: agentsInCalls },
+                { label: 'Calls Waiting', value: callsWaiting, color: chalk.yellow },
+                { label: 'Dial Level', value: dialLevel },
+                { spacer: true },
+                { label: 'Performance', header: true },
+                { label: 'CPU', value: createPerformanceBar(cpuUsage) },
+                { label: 'Memory', value: createPerformanceBar(memUsage) },
+            ];
+
+            const output = [];
+            const numLines = Math.max(artLines.length, dataRows.length + 2);
+
+            for (let i = 0; i < numLines; i++) {
+                const artLine = artLines[i] ? artLines[i].padEnd(artWidth) : ' '.repeat(artWidth);
+                let dataLine = '';
+                if (dataRows[i]) {
+                    const row = dataRows[i];
+                    if (row.header) {
+                        dataLine = chalk.cyan.bold(row.label);
+                    } else if (row.spacer) {
+                        dataLine = '';
+                    } else {
+                        const labelStr = `  ${row.label}`;
+                        const labelPart = chalk.gray(labelStr.padEnd(20));
+                        const valueStr = row.value.toString();
+
+                        if (row.label === 'CPU' || row.label === 'Memory') {
+                            dataLine = `${labelPart}${valueStr}`;
+                        } else {
+                            const valuePadding = ' '.repeat(Math.max(1, 20 - valueStr.length));
+                            const valuePart = row.color ? row.color(valueStr) : chalk.white(valueStr);
+                            dataLine = `${labelPart}${valuePadding}${valuePart}`;
+                        }
+                    }
+                }
+                output.push(`${artLine}   ${dataLine}`);
             }
-          }
+            console.log(output.join('\n'));
+
+            const healthStatus = 'Optimal';
+            const dataStatus = 'Active';
+            const footer = `[ ${new Date().toLocaleTimeString()} | Health: ${chalk.green(healthStatus)} | Data: ${chalk.cyan(dataStatus)} | Calls: ${activeCalls} | Agents: ${agentsLoggedIn} | Queue: ${callsWaiting} | Leads: ${dialableLeads} | ${chalk.red('ESC to Exit')} ]`;
+            console.log('\n' + chalk.gray(footer.padEnd(119)));
+
+        } catch (error) {
+            await cleanup();
         }
-        output.push(`${artLine}   ${dataLine}`);
-      }
-      console.log(output.join('\n'));
+    };
 
-      // --- 4. FOOTER RENDER ---
-      const healthStatus = 'Optimal';
-      const dataStatus = 'Active';
-      const footer = `[ ${new Date().toLocaleTimeString()} | Health: ${chalk.green(healthStatus)} | Data: ${chalk.cyan(dataStatus)} | Calls: ${activeCalls} | Agents: ${agentsLoggedIn} | Queue: ${callsWaiting} | Leads: ${dialableLeads} | ${chalk.red('ESC to Exit')} ]`;
-      console.log('\n' + chalk.gray(footer));
+    const interval = setInterval(mainLoop, 1500);
 
-    } catch (error) {
-      console.clear();
-      console.log(chalk.red.bold('A critical error occurred:'));
-      console.log(chalk.gray(error.stack));
-      await cleanup();
-    }
-  };
+    process.stdin.setRawMode(true).resume().on('data', (key) => {
+        if (key.toString() === '\u0003' || key.toString() === 'q' || key.toString() === '\u001b') {
+            clearInterval(interval);
+            cleanup();
+        }
+    });
 
-  const interval = setInterval(mainLoop, 1500);
-
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-  process.stdin.on('data', (key) => {
-    const char = key.toString();
-    if (char === '\u0003' || char === 'q' || char === '\u001b') {
-      clearInterval(interval);
-      cleanup();
-    }
-  });
-
-  await mainLoop();
+    await mainLoop();
 };
