@@ -17,19 +17,25 @@ function createProgressBar(value, max, width = 15) {
       bar += chalk.gray('░');
     }
   }
-  return `${bar} ${percentage.toFixed(1)}%`;
+  // Allign the percentage to the right
+  const percentageString = `${percentage.toFixed(1)}%`;
+  return `${bar} ${percentageString.padStart(5, ' ')}`;
 }
 
-function mergeColumns(leftArt, rightContent, artWidth = 50, rightPadding = 5) {
+function mergeColumns(leftArt, rightContent, artWidth = 50, rightPadding = 4) {
     const leftLines = leftArt.split('\n');
-    const maxHeight = Math.max(leftLines.length, rightContent.length);
+    // We add a blank line at the top of the right content to align it better
+    const rightLines = ['', ...rightContent];
+    const maxHeight = Math.max(leftLines.length, rightLines.length);
     let output = '';
 
     for (let i = 0; i < maxHeight; i++) {
         const leftLine = leftLines[i] || '';
-        const rightLine = rightContent[i] || '';
-        const paddedLeft = leftLine.padEnd(artWidth);
-        output += paddedLeft + ' '.repeat(rightPadding) + rightLine + '\n';
+        const rightLine = rightLines[i] || '';
+        // We use a regex to remove ANSI codes for length calculation
+        const strippedLeft = leftLine.replace(/\u001b\[[0-9;]*m/g, '');
+        const paddedLeft = strippedLeft.padEnd(artWidth);
+        output += chalk.gray(paddedLeft) + ' '.repeat(rightPadding) + rightLine + '\n';
     }
     return output;
 }
@@ -37,8 +43,8 @@ function mergeColumns(leftArt, rightContent, artWidth = 50, rightPadding = 5) {
 function buildRightColumn(data) {
     const lines = [];
     const maxLabelWidth = data.reduce((max, item) => {
-        if (item.label && item.label.length > max) {
-            return item.label.length;
+        if (item.label) {
+            return Math.max(max, item.label.length);
         }
         return max;
     }, 0);
@@ -59,9 +65,10 @@ function buildRightColumn(data) {
 // --- MAIN DASHBOARD FUNCTION ---
 
 module.exports = async function dashboard() {
-  process.stdout.write('\x1b[?25l');
+  process.stdout.write('\x1b[?25l'); // Hide cursor
+  
   const cleanup = () => {
-    process.stdout.write('\x1b[?25h');
+    process.stdout.write('\x1b[?25h'); // Show cursor
     console.clear();
   };
   
@@ -97,9 +104,9 @@ module.exports = async function dashboard() {
       };
       const uptime = formatUptime(new Date() - startTime);
 
-      // --- 2. BUILD UI COMPONENTS ---
+      // --- 2. BUILD UI COMPONENTS (neofetch style) ---
+      
       const rightColumnData = [
-          { isSpacer: true },
           { text: 'SYSTEM STATUS', isHeader: true },
           { label: 'Server:', value: chalk.green('ONLINE') },
           { label: 'Database:', value: chalk.green('CONNECTED') },
@@ -118,24 +125,26 @@ module.exports = async function dashboard() {
           { label: 'Memory:', value: createProgressBar(memoryUsage, 100) },
           { label: 'Network:', value: createProgressBar(networkIO, 100) },
       ];
+
       const rightColumnContent = buildRightColumn(rightColumnData);
 
       // --- 3. RENDER THE DASHBOARD ---
       console.clear();
+
+      // Main Content - NO HEADER
       const twoColumnLayout = mergeColumns(newAscii, rightColumnContent);
       console.log(twoColumnLayout);
-
-      // Dynamic status line footer
+      
+      // Footer status line
       const currentTime = new Date().toLocaleTimeString();
-      let statusLine = chalk.gray(`[ ${currentTime} | Health: ${chalk.green('Optimal')} | Data: ${latest ? chalk.blue('Active') : chalk.yellow('Waiting')} | `);
+      let statusLine = chalk.gray(`[ ${chalk.white(currentTime)} | Health: ${chalk.green('Optimal')} | Data Flow: ${latest ? chalk.blue('Active') : chalk.yellow('Waiting')} | `);
       if (latest) {
           statusLine += `Calls: ${chalk.yellow(activeCalls)} | Agents: ${chalk.white(agentsLoggedIn)} | Queue: ${chalk.yellow(waitingCalls)} | Leads: ${chalk.white(dialableLeads.toLocaleString())} `;
       } else {
           statusLine += chalk.yellow('Waiting for extension data... ');
       }
-      statusLine += chalk.gray(`| ${chalk.red('ESC: Exit')} ]`);
+      statusLine += chalk.gray(`| Actions: ${chalk.red('(ESC) Exit')} ]`);
 
-      console.log('\n');
       console.log(statusLine);
       
       await dbConnection.close();
@@ -144,17 +153,17 @@ module.exports = async function dashboard() {
       console.clear();
       console.log(chalk.red.bold('An error occurred while rendering the dashboard:'));
       console.log(chalk.gray(error.stack));
-      process.stdout.write('\x1b[25h');
+      process.stdout.write('\x1b[?25h'); // Ensure cursor is visible on error
     }
     
     frame++;
     
     await new Promise(resolve => {
-      const timeout = setTimeout(resolve, 2000);
+      const timeout = setTimeout(resolve, 1000); // 1-second refresh rate
       process.stdin.setRawMode(true);
       process.stdin.resume();
       process.stdin.once('data', (key) => {
-        if (key[0] === 3 || key.toString() === 'q') { 
+        if (key[0] === 3 || key.toString() === 'q') { // Ctrl+C or 'q'
           running = false;
         }
         clearTimeout(timeout);
