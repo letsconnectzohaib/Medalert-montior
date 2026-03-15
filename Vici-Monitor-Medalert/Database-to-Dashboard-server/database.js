@@ -40,29 +40,19 @@ const initializeDb = (dbPath) => {
             return;
         }
 
-        // Add a default admin user if one doesn't exist
-        const defaultUsername = 'admin';
-        const defaultPassword = 'password'; // In a real app, use a more secure default or a setup script
-
-        db.get('SELECT * FROM users WHERE username = ?', [defaultUsername], async (err, row) => {
+        // Check if an admin user exists. If not, log a message to guide the administrator.
+        db.get('SELECT COUNT(*) as count FROM users WHERE role = ?', ['admin'], (err, row) => {
             if (err) {
-                console.error('Error checking for default user:', err.message);
+                console.error('Error checking for admin user:', err.message);
                 return;
             }
-            if (!row) {
-                try {
-                    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-                    db.run('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)', 
-                           [defaultUsername, hashedPassword, 'admin'], (err) => {
-                        if (err) {
-                            console.error('Error inserting default user:', err.message);
-                        } else {
-                            console.log(`Default user '${defaultUsername}' created with password '${defaultPassword}'.`);
-                        }
-                    });
-                } catch (hashError) {
-                     console.error('Error hashing default password:', hashError);
-                }
+            if (row.count === 0) {
+                console.log('-----------------------------------------------------------------');
+                console.log('WARNING: No admin user found.');
+                console.log('This is the recommended secure default.');
+                console.log('To create an admin, you must do so manually via a secure script or direct database access.');
+                console.log('Example utility script to add a user: node initial-user.js <username> <password> <role>');
+                console.log('-----------------------------------------------------------------');
             }
         });
     });

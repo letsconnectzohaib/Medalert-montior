@@ -28,17 +28,14 @@ router.get('/realtime', async (req, res) => {
   if (campaign || group) {
     const filterClauses = [];
     if (campaign) {
-        // Assuming 'campaign' column exists in agent_log for filtering
         filterClauses.push('campaign = ?');
         params.push(campaign);
     }
     if (group) {
-        // Assuming 'user_group' column exists for filtering
-        filterClauses.push('user_group = ?');
+        filterClauses.push('agent_group = ?'); // Standardize column name
         params.push(group);
     }
     if(filterClauses.length > 0) {
-        // Note: This WHERE clause is inside the subquery to filter before finding the latest record.
         filterQuery = `WHERE ${filterClauses.join(' AND ')}`;
     }
   }
@@ -60,9 +57,12 @@ router.get('/realtime', async (req, res) => {
   `;
 
   try {
+    // QA FIX: The frontend expects a direct array, not a nested object.
     const rows = await dbAll(db, sql, params);
-    res.json({ success: true, data: rows });
+    res.json(rows); // Return the array directly
+
   } catch (error) {
+    // QA FIX: Standardize error format
     res.status(500).json({ success: false, error: 'Failed to retrieve real-time agent status.' });
   }
 });

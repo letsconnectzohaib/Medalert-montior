@@ -2,35 +2,50 @@
 const express = require('express');
 const router = express.Router();
 
+// A reusable database query function with async/await and standardized error handling
+const queryDatabase = (db, sql, params) => {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) {
+        console.error('Database query error:', err.message);
+        // Reject with a standardized error object
+        reject({ status: 500, error: 'Database query failed.' });
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+};
+
+
 // GET /api/summary?shiftDate=YYYY-MM-DD
-// Securely fetches a summary of agent activity for a given date, with optional filters.
+// Fetches a summary of agent activity with standardized API responses.
 router.get('/', async (req, res) => {
   const { shiftDate, campaign, group } = req.query;
 
-  // 1. Validate Input
+  // Input Validation
   if (!shiftDate || !shiftDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    // Standardized error response
     return res.status(400).json({ success: false, error: 'Invalid or missing date format. Use YYYY-MM-DD.' });
   }
 
-  const db = req.db;
   const params = [shiftDate];
   const filterClauses = [];
 
-  // 2. Securely Build Filter Query
-  // Each parameter is added to the `params` array, not concatenated into the string.
+  // Securely build query filters
   if (campaign) {
     filterClauses.push('campaign = ?');
     params.push(campaign);
   }
   if (group) {
-    // Assuming the column is 'user_group'. This prevents injection on the column name itself.
-    filterClauses.push('user_group = ?');
+    // QA Finding: Standardize column name usage
+    filterClauses.push('agent_group = ?'); // Use 'agent_group' consistently
     params.push(group);
   }
 
-  // Combine filter clauses safely
   const filterQuery = filterClauses.length > 0 ? `AND ${filterClauses.join(' AND ')}` : '';
 
+  // The SQL query is unchanged, but the execution is now wrapped
   const sql = `
     SELECT 
       agent_status, 
@@ -42,23 +57,13 @@ router.get('/', async (req, res) => {
     ORDER BY status_count DESC;
   `;
 
-  // 3. Execute Query with Consistent Async/Await and Error Handling
   try {
-    const rows = await new Promise((resolve, reject) => {
-      db.all(sql, params, (err, rows) => {
-        if (err) {
-          // On failure, reject the promise with the error
-          reject(err);
-        } else {
-          // On success, resolve the promise with the data
-          resolve(rows);
-        }
-      });
-    });
+    const rows = await queryDatabase(req.db, sql, params);
     res.json({ success: true, data: rows });
-  } catch (error) {
-    console.error('Database query failed:', error);
-    res.status(500).json({ success: false, error: 'Failed to retrieve summary data.' });
+  } catch (err) {
+    // Use the standardized error format from the rejection
+    const { status = 500, error = 'An unknown error occurred.' } = err;
+    res.status(status).json({ success: false, error });
   }
 });
 
