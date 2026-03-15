@@ -42,7 +42,20 @@ module.exports = async function dashboard() {
     await dbConnection.close();
     console.clear();
     process.stdout.write('\x1b[?25h'); // Show cursor
-    console.log(chalk.cyan.bold('Vici Monitor Closed.'));
+
+    const boxWidth = 80;
+    const stoppedMsg = 'Vici Monitor Stopped Gracefully';
+    const systemMsg = 'Medalert axcl2s System';
+    const stoppedPadding = ' '.repeat(Math.floor((boxWidth - stoppedMsg.length) / 2));
+    const systemPadding = ' '.repeat(Math.floor((boxWidth - systemMsg.length) / 2));
+
+    console.log('');
+    console.log(chalk.gray('╔' + '═'.repeat(boxWidth) + '╗'));
+    console.log(chalk.gray('║' + stoppedPadding + chalk.bold.cyan(stoppedMsg) + stoppedPadding + '║'));
+    console.log(chalk.gray('║' + systemPadding + chalk.dim(systemMsg) + systemPadding + '║'));
+    console.log(chalk.gray('╚' + '═'.repeat(boxWidth) + '╝'));
+    console.log('');
+
     process.exit(0);
   };
 
