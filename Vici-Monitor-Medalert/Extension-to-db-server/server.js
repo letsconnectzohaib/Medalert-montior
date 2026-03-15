@@ -109,6 +109,11 @@ function loadSettings() {
 }
 
 // --- API Endpoints ---
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+
 app.post('/api/logs', (req, res) => {
   const data = req.body;
   const timestamp = data.timestamp || new Date().toISOString();
@@ -169,4 +174,3 @@ async function startServer() {
 }
 
 startServer();
-

@@ -1,96 +1,96 @@
-// background.js - Professional Service Worker
-importScripts('utils.js');
 
-const settings = {};
-const ALARM_NAME = 'slack-report';
-const BACKEND_STATS_URL = 'http://localhost:3000/api/logs';
-const BACKEND_STATUS_URL = 'http://localhost:3000/api/status';
-let lastBackendUpdate = 0;
-let isBackendRunning = false; // Cache the status
+// background.js - Service Worker for Vici-Monitor Extension
 
-// --- 1. Initialization & Alarms ---
+const BACKEND_URL = 'http://localhost:3000';
+let backendStatus = 'pending'; // 'pending', 'online', 'offline'
+let lastSuccessfulRequest = 0;
 
-chrome.runtime.onInstalled.addListener(async () => {
-    Utils.log('Extension installed/updated');
-    // Load initial settings, though we don't use them much here anymore.
-});
+// --- 1. Core Logic ---
 
-// The alarm logic for Slack reporting is kept but is not essential
-// for the real-time dashboard functionality.
-
-// --- 2. Message Handling ---
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'sendStats') {
-        if (isBackendRunning) {
-            sendToBackend(message.data).then(success => {
-                sendResponse({ success });
-            });
+const checkBackendHealth = async () => {
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/health`, { 
+            signal: AbortSignal.timeout(2000) 
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'healthy') {
+                updateStatus('online');
+            } else {
+                updateStatus('offline');
+            }
         } else {
-            sendResponse({ success: false, error: 'Backend is offline' });
+            updateStatus('offline');
         }
-    } else if (message.action === 'getBackendStatus') {
-        checkBackendStatus().then(isRunning => {
-            sendResponse({ isRunning });
-        });
+    } catch (error) {
+        updateStatus('offline');
     }
-    // Return true to indicate we will respond asynchronously
-    return true; 
-});
+};
 
+const sendDataToBackend = async (data) => {
+    // Throttle requests to avoid overwhelming the server
+    if (Date.now() - lastSuccessfulRequest < 1500) return { success: true, throttled: true };
 
-// --- 3. Backend Communication ---
-
-async function checkBackendStatus() {
-    try {
-        const response = await fetch(BACKEND_STATUS_URL, {
-             method: 'GET',
-             // Timeout in milliseconds. AbortController is the standard way.
-             signal: AbortSignal.timeout(3000) 
-        });
-        
-        // Update status based on response
-        const newStatus = response.ok;
-        if (newStatus !== isBackendRunning) {
-            Utils.log(`Backend status changed: ${newStatus ? 'Online' : 'Offline'}`);
-            isBackendRunning = newStatus;
-        }
-
-    } catch (err) {
-        if (isBackendRunning) {
-            Utils.log('Backend status changed: Offline (request failed)', err.name);
-            isBackendRunning = false;
-        }
+    if (backendStatus !== 'online') {
+        return { success: false, error: 'Backend is offline.' };
     }
-    return isBackendRunning;
-}
-
-
-async function sendToBackend(stats) {
-    const now = Date.now();
-    // Throttle updates to every 2 seconds to avoid flooding the server.
-    if (now - lastBackendUpdate < 2000) return true; 
 
     try {
-        const response = await fetch(BACKEND_STATS_URL, {
+        const response = await fetch(`${BACKEND_URL}/api/logs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(stats),
+            body: JSON.stringify(data),
             signal: AbortSignal.timeout(3000)
         });
-        
+
         if (response.ok) {
-            lastBackendUpdate = now;
-            return true;
+            lastSuccessfulRequest = Date.now();
+            return { success: true };
         } else {
-            console.error('Backend responded with error:', response.status);
-            // If the server gives an error, we mark it as not running.
-            isBackendRunning = false; 
-            return false;
+            const errorData = await response.json();
+            updateStatus('offline'); // Assume server is down if it returns an error
+            return { success: false, error: errorData.error || 'Server returned an error.' };
         }
-    } catch (err) {
-        console.error('Failed to send to backend:', err.name);
-        isBackendRunning = false;
-        return false;
+    } catch (error) {
+        updateStatus('offline');
+        return { success: false, error: error.message };
     }
-}
+};
+
+const updateStatus = (newStatus) => {
+    if (backendStatus === newStatus) return;
+    backendStatus = newStatus;
+    // Broadcast status change to all parts of the extension (like the popup)
+    chrome.runtime.sendMessage({ action: 'backendStatusChanged', status: backendStatus });
+    console.log(`Vici-Monitor: Backend status is now ${backendStatus.toUpperCase()}`);
+};
+
+
+// --- 2. Event Listeners ---
+
+// Listener for messages from content scripts or popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'sendStats') {
+        sendDataToBackend(message.data).then(sendResponse);
+    } else if (message.action === 'getBackendStatus') {
+        // Immediately return the cached status
+        sendResponse({ status: backendStatus });
+    }
+    return true; // Indicates an async response
+});
+
+// Initialize and set up periodic health check
+chrome.runtime.onStartup.addListener(() => {
+    checkBackendHealth();
+});
+
+// When the extension is installed or updated
+chrome.runtime.onInstalled.addListener(() => {
+    checkBackendHealth();
+});
+
+// Periodically check the backend health every 5 seconds
+setInterval(checkBackendHealth, 5000);
+
+// Initial check when the script is first loaded
+checkBackendHealth();
