@@ -67,6 +67,7 @@ module.exports = async function dashboard() {
   let lastValues = { waitingCalls: 0, handledCalls: 0 };
   let peakWaiting = 0;
   const AVG_HANDLE_TIME_SECONDS = 180; // Assumed average handle time
+  const startTime = new Date(); // FIX: Initialize startTime
 
   const mainLoop = async () => {
     try {
