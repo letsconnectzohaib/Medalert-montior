@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+require('dotenv').config(); // Load environment variables
 const { all, get } = require('./database'); // Import the new database module
 const agentRoutes = require('./routes/agentRoutes');
 const summaryRoutes = require('./routes/summary'); 

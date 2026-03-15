@@ -4,10 +4,12 @@
   "description": "Serves data from the Vicidial database to the web dashboard.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "setup": "node apply_indexes.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
     "express": "^4.19.2",
     "express-rate-limit": "^8.3.1",
     "sqlite3": "^5.1.7"
