@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const agentRoutes = require('./routes/agentRoutes');
+const summaryRoutes = require('./routes/summaryRoutes'); // Import the new summary routes
 
 const app = express();
 const PORT = 3001; // Running on a different port than the extension server
@@ -39,6 +40,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/agents', agentRoutes);
+app.use('/api/summary', summaryRoutes); // Use the new summary routes
 
 // --- Server Start ---
 app.listen(PORT, () => {
