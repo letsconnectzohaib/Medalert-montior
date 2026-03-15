@@ -6,33 +6,33 @@
 
 ### Part 1: Immediate Security Remediation (Critical Priority)
 
--   [ ] **Environment Variables:**
-    -   [ ] Move the `JWT_SECRET` from `authRoutes.js` to a secure environment variable.
-    -   [ ] Create a `.env.example` file to document required variables.
--   [ ] **Authentication:**
-    -   [ ] Remove the hardcoded default admin credentials from the database seeding process.
+-   [x] **Environment Variables:**
+    -   [x] Move the `JWT_SECRET` from `authRoutes.js` to a secure environment variable.
+    -   [x] Create a `.env.example` file to document required variables.
+-   [x] **Authentication:**
+    -   [x] Remove the hardcoded default admin credentials from the database seeding process.
     -   [ ] Implement a "force password change on first login" mechanism for default accounts.
--   [ ] **SQL Injection:**
-    -   [ ] Review all database queries and ensure 100% are parameterized, especially in `summary.js` and `agentRoutes.js`.
--   [ ] **API Response Standardization:**
-    -   [ ] Enforce a single, consistent error response format (`{ success: false, error: '...' }`) across all backend endpoints.
+-   [x] **SQL Injection:**
+    -   [x] Review all database queries and ensure 100% are parameterized, especially in `summary.js` and `agentRoutes.js`.
+-   [x] **API Response Standardization:**
+    -   [x] Enforce a single, consistent error response format (`{ success: false, error: '...' }`) across all backend endpoints.
 
 ---
 
 ### Part 2: High Priority Fixes & Performance
 
--   [ ] **Database Performance:**
-    -   [ ] Create a new SQL script to add indexes to the `agent_log` table for `campaign`, `user_group`, and `timestamp`.
+-   [x] **Database Performance:**
+    -   [x] Create a new SQL script to add indexes to the `agent_log` table for `campaign`, `user_group`, and `timestamp`.
     -   [ ] Execute the indexing script on the database.
 -   [ ] **API Security:**
     -   [ ] Implement rate limiting on authentication endpoints (`/api/auth/login`) to prevent brute-force attacks.
 -   [ ] **Frontend Reliability:**
     -   [ ] Wrap key components in React Error Boundaries to prevent UI crashes from unexpected data or errors.
--   [ ] **Functionality Fixes:**
-    -   [ ] Correct the broken query in the summary routes (the one referencing `vicidial_log`).
-    -   [ ] Fix the login endpoint to return the standardized response format.
-    -   [ ] Add proper 401/403 error handling to the token verification middleware.
-    -   [ ] Correct the column name mismatch for filtering (`agent_group` vs `group`).
+-   [x] **Functionality Fixes:**
+    -   [x] Correct the broken query in the summary routes (the one referencing `vicidial_log`).
+    -   [x] Fix the login endpoint to return the standardized response format.
+    -   [x] Add proper 401/403 error handling to the token verification middleware.
+    -   [x] Correct the column name mismatch for filtering (`agent_group` vs `group`).
 -   [ ] **Database Connection Management:**
     -   [ ] Implement connection pooling to handle concurrent requests more efficiently.
 
