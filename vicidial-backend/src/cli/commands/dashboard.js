@@ -3,7 +3,7 @@ const chalk = require('chalk');
 const { newAscii } = require('../../utils/art');
 const CLIHelpers = require('../../utils/cli-helpers');
 
-// Main banner
+// Main banner (cleaned up)
 const logo = `
 ╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                                                      ║
@@ -16,20 +16,18 @@ const logo = `
 ║       ▒▒███      █████▒▒██████  █████                           █████     █████▒▒██████  ████ █████ █████  ▒▒█████ ▒▒██████  █████       ║
 ║        ▒▒▒      ▒▒▒▒▒  ▒▒▒▒▒▒  ▒▒▒▒▒                           ▒▒▒▒▒     ▒▒▒▒▒  ▒▒▒▒▒▒  ▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒   ▒▒▒▒▒▒  ▒▒▒▒▒        ║
 ║                                                                                                                      ║
-║                                              🏥 Vici Monitor - Professional Dashboard                                ║
-║                                                    Medalert axcl2s System                                          ║
 ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝`;
 
 // --- HELPER FUNCTIONS ---
 
-function createProgressBar(value, max, width = 20) {
+function createProgressBar(value, max, width = 15) {
   const percentage = Math.min(100, (value / max) * 100);
   const filled = Math.round(width * percentage / 100);
   let bar = '';
   for (let i = 0; i < width; i++) {
     if (i < filled) {
-      if (i < filled * 0.3) bar += chalk.green('█');
-      else if (i < filled * 0.7) bar += chalk.yellow('█');
+      if (percentage < 33) bar += chalk.green('█');
+      else if (percentage < 66) bar += chalk.yellow('█');
       else bar += chalk.red('█');
     } else {
       bar += chalk.gray('░');
@@ -52,9 +50,27 @@ function mergeColumns(leftArt, rightContent, artWidth = 60, rightPadding = 4) {
     return output;
 }
 
-function createInfoLine(label, value, labelWidth = 18) {
-    const paddedLabel = label.padEnd(labelWidth);
-    return `${chalk.cyan.bold(paddedLabel)}${value}`;
+// New function to build a perfectly aligned right column
+function buildRightColumn(data) {
+    const lines = [];
+    const maxLabelWidth = data.reduce((max, item) => {
+        if (item.label && item.label.length > max) {
+            return item.label.length;
+        }
+        return max;
+    }, 0);
+
+    data.forEach(item => {
+        if (item.isHeader) {
+            lines.push(chalk.white.bold.underline(item.text));
+        } else if (item.isSpacer) {
+            lines.push('');
+        } else if (item.label) {
+            const paddedLabel = item.label.padEnd(maxLabelWidth);
+            lines.push(`${chalk.cyan.bold(paddedLabel)}  ${item.value}`);
+        }
+    });
+    return lines;
 }
 
 // --- MAIN DASHBOARD FUNCTION ---
@@ -65,7 +81,6 @@ module.exports = async function dashboard() {
   const cleanup = () => {
     process.stdout.write('\x1b[?25h'); // Show cursor
     console.clear();
-    console.log(chalk.cyan('👋 Vici Monitor - Dashboard stopped gracefully'));
   };
   
   process.on('SIGINT', cleanup);
@@ -76,8 +91,6 @@ module.exports = async function dashboard() {
   const startTime = new Date();
 
   while (running) {
-    console.clear();
-    
     try {
       // --- 1. DATA FETCHING ---
       const dbConnection = require('../../database/connection');
@@ -111,29 +124,34 @@ module.exports = async function dashboard() {
       }
       const uptime = formatUptime(new Date() - startTime);
 
-      // --- 2. BUILD UI COMPONENTS ---
+      // --- 2. BUILD UI COMPONENTS (New Structured Way) ---
       
-      const rightColumnContent = [
-          chalk.white.bold.underline('SYSTEM STATUS'),
-          createInfoLine('  Server:', chalk.green('ONLINE')),
-          createInfoLine('  Database:', chalk.green('CONNECTED')),
-          createInfoLine('  Extension:', extensionStatus),
-          createInfoLine('  Uptime:', chalk.white(uptime)),
-          ' ', 
-          chalk.white.bold.underline('CALL CENTER'),
-          createInfoLine('  Active Calls:', chalk.yellow(activeCalls.toString())),
-          createInfoLine('  Agents Logged In:', chalk.white(agentsLoggedIn.toString())),
-          createInfoLine('  Agents In Calls:', chalk.white(agentsInCalls.toString())),
-          createInfoLine('  Waiting Calls:', chalk.yellow(waitingCalls.toString())),
-          createInfoLine('  Dial Level:', chalk.cyan(dialLevel)),
-          ' ',
-          chalk.white.bold.underline('PERFORMANCE'),
-          createInfoLine('  CPU:', createProgressBar(cpuUsage, 100, 15)),
-          createInfoLine('  Memory:', createProgressBar(memoryUsage, 100, 15)),
-          createInfoLine('  Network:', createProgressBar(networkIO, 100, 15)),
+      const rightColumnData = [
+          { isSpacer: true }, // Added for vertical alignment
+          { isSpacer: true },
+          { text: 'SYSTEM STATUS', isHeader: true },
+          { label: 'Server:', value: chalk.green('ONLINE') },
+          { label: 'Database:', value: chalk.green('CONNECTED') },
+          { label: 'Extension:', value: extensionStatus },
+          { label: 'Uptime:', value: chalk.white(uptime) },
+          { isSpacer: true },
+          { text: 'CALL CENTER', isHeader: true },
+          { label: 'Active Calls:', value: chalk.yellow(activeCalls.toString()) },
+          { label: 'Agents Logged In:', value: chalk.white(agentsLoggedIn.toString()) },
+          { label: 'Agents In Calls:', value: chalk.white(agentsInCalls.toString()) },
+          { label: 'Waiting Calls:', value: chalk.yellow(waitingCalls.toString()) },
+          { label: 'Dial Level:', value: chalk.cyan(dialLevel) },
+          { isSpacer: true },
+          { text: 'PERFORMANCE', isHeader: true },
+          { label: 'CPU:', value: createProgressBar(cpuUsage, 100) },
+          { label: 'Memory:', value: createProgressBar(memoryUsage, 100) },
+          { label: 'Network:', value: createProgressBar(networkIO, 100) },
       ];
 
+      const rightColumnContent = buildRightColumn(rightColumnData);
+
       // --- 3. RENDER THE DASHBOARD ---
+      console.clear();
 
       // Header
       console.log(chalk.cyan(logo));
@@ -157,7 +175,6 @@ module.exports = async function dashboard() {
           console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.yellow('🎯')} Dial: ${chalk.white(dialLevel)} | ${chalk.magenta('📋')} Leads: ${chalk.white(dialableLeads.toLocaleString())}`.padEnd(99) + chalk.magenta('║'));
       } else {
           console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.yellow('⚠️')} No extension data received`.padEnd(99) + chalk.magenta('║'));
-          console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.blue('ℹ️')} Waiting for extension to connect...`.padEnd(99) + chalk.magenta('║'));
       }
       console.log(streamFooter);
       console.log('\n');
@@ -172,7 +189,7 @@ module.exports = async function dashboard() {
       console.clear();
       console.log(chalk.red.bold('An error occurred while rendering the dashboard:'));
       console.log(chalk.gray(error.stack));
-      process.stdout.write('\x1b[?25h'); // Ensure cursor is visible on error
+      process.stdout.write('\x1b[?25h');
     }
     
     frame++;
@@ -182,7 +199,7 @@ module.exports = async function dashboard() {
       process.stdin.setRawMode(true);
       process.stdin.resume();
       process.stdin.once('data', (key) => {
-        if (key[0] === 3 || key.toString() === 'q') { // Ctrl+C or 'q'
+        if (key[0] === 3 || key.toString() === 'q') { 
           running = false;
         }
         clearTimeout(timeout);
