@@ -6,6 +6,18 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import AgentPerformance from "./pages/AgentPerformance";
+import LiveFeed from "./pages/LiveFeed";
+import QueueMonitor from "./pages/QueueMonitor";
+import SLADashboard from "./pages/SLADashboard";
+import CallAnalytics from "./pages/CallAnalytics";
+import Trends from "./pages/Trends";
+import ShiftReports from "./pages/ShiftReports";
+import CapacityPlanning from "./pages/CapacityPlanning";
+import ShiftTimeline from "./pages/ShiftTimeline";
+import ConnectionPage from "./pages/ConnectionPage";
+import SettingsPage from "./pages/SettingsPage";
+import { DashboardLayout } from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,7 +43,20 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/agents" element={<AgentPerformance />} />
+              <Route path="/live" element={<LiveFeed />} />
+              <Route path="/queue" element={<QueueMonitor />} />
+              <Route path="/sla" element={<SLADashboard />} />
+              <Route path="/analytics" element={<CallAnalytics />} />
+              <Route path="/trends" element={<Trends />} />
+              <Route path="/reports" element={<ShiftReports />} />
+              <Route path="/capacity" element={<CapacityPlanning />} />
+              <Route path="/timeline" element={<ShiftTimeline />} />
+              <Route path="/connection" element={<ConnectionPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
