@@ -1,6 +1,7 @@
 
 const chalk = require('chalk');
 const os = require('os');
+const { execSync } = require('child_process');
 const { newAscii } = require('../../utils/art');
 const dbConnection = require('../../database/connection');
 const StatsModel = require('../../database/models/Stats');
@@ -39,9 +40,19 @@ function createPerformanceBar(value, width = 10) {
 module.exports = async function dashboard() {
     const REQUIRED_COLS = 140;
     const REQUIRED_ROWS = 40;
+
+    if (os.platform() === 'win32') {
+        try {
+            execSync(`mode con: cols=${REQUIRED_COLS} lines=${REQUIRED_ROWS}`);
+        } catch (error) {
+            console.warn(chalk.yellow('Failed to auto-resize terminal. Please adjust manually.'));
+        }
+    }
+
     process.stdout.write('\x1b[?25l'); // Hide cursor
     if (process.stdout.columns < REQUIRED_COLS || process.stdout.rows < REQUIRED_ROWS) {
-        console.error(chalk.red(`Terminal size must be at least ${REQUIRED_COLS}x${REQUIRED_ROWS} for this dashboard.`));
+        console.error(chalk.red(`Terminal size must be at least ${REQUIRED_COLS}x${REQUIRED_ROWS}.`));
+        console.error(chalk.yellow(`Current size: ${process.stdout.columns}x${process.stdout.rows}. Please resize and try again.`));
         process.exit(1);
     }
 
