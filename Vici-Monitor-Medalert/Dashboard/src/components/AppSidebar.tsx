@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, Volume2, VolumeX, Activity, LogOut,
   Radio, FileText, Settings, Target, BarChart3, PhoneIncoming,
-  Gauge, Wifi, WifiOff, Clock, TrendingUp, Shield
+  Gauge, Wifi, WifiOff, Clock, TrendingUp, Shield, CalendarCheck
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -28,6 +28,7 @@ const navGroups = [
       { title: "Agent Performance", url: "/agents", icon: Users },
       { title: "Call Analytics", url: "/analytics", icon: BarChart3 },
       { title: "Trends", url: "/trends", icon: TrendingUp },
+      { title: "Shift Summary", url: "/shift-summary", icon: CalendarCheck },
     ],
   },
   {

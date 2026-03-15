@@ -17,6 +17,7 @@ import CapacityPlanning from "./pages/CapacityPlanning";
 import ShiftTimeline from "./pages/ShiftTimeline";
 import ConnectionPage from "./pages/ConnectionPage";
 import SettingsPage from "./pages/SettingsPage";
+import ShiftSummary from "./pages/ShiftSummary";
 import { DashboardLayout } from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 
@@ -56,6 +57,7 @@ const App = () => (
               <Route path="/timeline" element={<ShiftTimeline />} />
               <Route path="/connection" element={<ConnectionPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/shift-summary" element={<ShiftSummary />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

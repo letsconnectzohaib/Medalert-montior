@@ -10,315 +10,158 @@ const app = express();
 const PORT = 3000;
 const DB_FILE = path.join(__dirname, 'vicidial_stats.db');
 
-// Middleware
+// --- Configurable Shift Settings ---
+let shiftSettings = {
+  TIMEZONE: 'Asia/Karachi', // PKT
+  SHIFT_START_HOUR: 19, // 7:00 PM
+  SHIFT_START_MINUTE: 0,
+  SHIFT_END_HOUR: 4, // 4:00 AM
+  SHIFT_END_MINUTE: 30,
+};
+
+
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Ensure the database directory exists
 const dbDir = path.dirname(DB_FILE);
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-// Initialize SQLite database
 const db = new sqlite3.Database(DB_FILE, (err) => {
-  if (err) {
-    console.error('Error opening database:', err);
-  } else {
-    console.log('Connected to SQLite database');
-  }
+  if (err) console.error('Error opening database:', err);
+  else console.log('Connected to SQLite database');
 });
 
-// Create tables and indexes
-function initializeDatabase() {
+// --- Business Logic for Shifts ---
+function getShiftDate(timestamp) {
+    const date = new Date(timestamp);
+
+    //This is a simple example, in a real-world scenario you would use a robust library like date-fns-tz or luxon for this
+    const localHour = date.getUTCHours() + 5; // Simple approximation for PKT (UTC+5)
+    const localMinute = date.getUTCMinutes();
+
+    // If the time is before the end of the shift (e.g., before 4:30 AM), it belongs to the previous day's shift
+    if (localHour < shiftSettings.SHIFT_END_HOUR || (localHour === shiftSettings.SHIFT_END_HOUR && localMinute < shiftSettings.SHIFT_END_MINUTE)) {
+        date.setDate(date.getDate() - 1);
+    }
+
+    // Return in YYYY-MM-DD format
+    return date.toISOString().split('T')[0];
+}
+
+
+async function initializeDatabase() {
   return new Promise((resolve, reject) => {
     db.serialize(() => {
-      // Main stats table
-      db.run(`CREATE TABLE IF NOT EXISTS stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                activeCalls INTEGER DEFAULT 0,
-                ringingCalls INTEGER DEFAULT 0,
-                waitingCalls INTEGER DEFAULT 0,
-                ivrCalls INTEGER DEFAULT 0,
-                agentsLoggedIn INTEGER DEFAULT 0,
-                agentsInCalls INTEGER DEFAULT 0,
-                agentsWaiting INTEGER DEFAULT 0,
-                agentsPaused INTEGER DEFAULT 0,
-                agentsDead INTEGER DEFAULT 0,
-                agentsDispo INTEGER DEFAULT 0,
-                dialLevel TEXT,
-                dialableLeads INTEGER DEFAULT 0,
-                callsToday INTEGER DEFAULT 0,
-                droppedAnswered TEXT,
-                avgAgents INTEGER DEFAULT 0,
-                dialMethod TEXT,
-                raw_data TEXT
+      db.run(`CREATE TABLE IF NOT EXISTS summary_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME, shift_date TEXT, activeCalls INTEGER,
+                agentsLoggedIn INTEGER, agentsInCalls INTEGER, callsWaiting INTEGER, dialLevel TEXT, dialableLeads INTEGER
+            )`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_summary_shift_date ON summary_log(shift_date)`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS agent_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME, shift_date TEXT, station TEXT, user_name TEXT, status TEXT,
+                status_duration_seconds INTEGER, vicidial_state_color TEXT, campaign TEXT, calls_today INTEGER
+            )`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_agent_shift_date ON agent_log(shift_date)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_agent_user_shift ON agent_log(user_name, shift_date)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_agent_color_shift ON agent_log(vicidial_state_color, shift_date)`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS waiting_calls_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME, shift_date TEXT, campaign TEXT, dial_time_seconds INTEGER
+            )`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_waiting_shift_date ON waiting_calls_log(shift_date)`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY, value TEXT
             )`, (err) => {
-        if (err) return reject(err);
-
-        // Create indexes for performance
-        db.run(`CREATE INDEX IF NOT EXISTS idx_timestamp ON stats(timestamp)`, (err) => {
-          if (err) return reject(err);
-
-          db.run(`CREATE INDEX IF NOT EXISTS idx_date_bucket ON stats(date(timestamp))`, (err) => {
-            if (err) return reject(err);
-
-            db.run(`CREATE INDEX IF NOT EXISTS idx_hour_bucket ON stats(strftime('%Y-%m-%d %H', timestamp))`, (err) => {
-              if (err) return reject(err);
-
-              console.log('Database initialized with tables and indexes');
-              resolve();
+                if (!err) {
+                    // Populate with default settings if table is new
+                    const stmt = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
+                    Object.entries(shiftSettings).forEach(([key, value]) => stmt.run(key, String(value)));
+                    stmt.finalize();
+                }
             });
-          });
-        });
-      });
+      resolve();
     });
   });
 }
 
-// Endpoint to receive logs from extension
-app.post('/api/logs', async (req, res) => {
-  try {
-    const data = req.body;
-    const summary = data.summary || {};
-    const meta = data.meta || {};
+function loadSettings() {
+    return new Promise((resolve) => {
+        db.all("SELECT key, value FROM settings", [], (err, rows) => {
+            if (!err && rows.length) {
+                const loadedSettings = rows.reduce((acc, row) => ({...acc, [row.key]: row.value }), {});
+                shiftSettings = {
+                    ...shiftSettings,
+                    ...loadedSettings,
+                    SHIFT_START_HOUR: parseInt(loadedSettings.SHIFT_START_HOUR),
+                    SHIFT_START_MINUTE: parseInt(loadedSettings.SHIFT_START_MINUTE),
+                    SHIFT_END_HOUR: parseInt(loadedSettings.SHIFT_END_HOUR),
+                    SHIFT_END_MINUTE: parseInt(loadedSettings.SHIFT_END_MINUTE),
+                };
+                console.log("Shift settings loaded from database:", shiftSettings);
+            }
+            resolve();
+        });
+    });
+}
 
-    // Insert into SQLite database
-    const stmt = db.prepare(`
-            INSERT INTO stats (
-                timestamp, activeCalls, ringingCalls, waitingCalls, ivrCalls,
-                agentsLoggedIn, agentsInCalls, agentsWaiting, agentsPaused,
-                agentsDead, agentsDispo, dialLevel, dialableLeads, callsToday,
-                droppedAnswered, avgAgents, dialMethod, raw_data
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
+// --- API Endpoints ---
+app.post('/api/logs', (req, res) => {
+  const data = req.body;
+  const timestamp = data.timestamp || new Date().toISOString();
+  const calculatedShiftDate = getShiftDate(timestamp);
 
-    stmt.run(
-      data.timestamp || new Date().toISOString(),
-      summary.activeCalls || 0,
-      summary.ringingCalls || 0,
-      summary.waitingCalls || 0,
-      summary.ivrCalls || 0,
-      summary.agentsLoggedIn || 0,
-      summary.agentsInCalls || 0,
-      summary.agentsWaiting || 0,
-      summary.agentsPaused || 0,
-      summary.agentsDead || 0,
-      summary.agentsDispo || 0,
-      meta.dialLevel || null,
-      meta.dialableLeads || 0,
-      meta.callsToday || 0,
-      meta.droppedAnswered || null,
-      meta.avgAgents || 0,
-      meta.dialMethod || null,
-      JSON.stringify(data)
-    );
+  const { summary = {}, details = { agents: [], waitingCalls: [] } } = data;
 
-    stmt.finalize();
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+    try {
+        const summaryStmt = db.prepare(`INSERT INTO summary_log (timestamp, shift_date, activeCalls, agentsLoggedIn, agentsInCalls, callsWaiting, dialLevel, dialableLeads) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+        summaryStmt.run(timestamp, calculatedShiftDate, summary.activeCalls, summary.agentsLoggedIn, summary.agentsInCalls, summary.callsWaiting, data.meta?.dialLevel, data.meta?.dialableLeads);
+        summaryStmt.finalize();
 
-    console.log(`[${new Date().toISOString()}] Stats inserted into database`);
-    res.json({ success: true });
+        const agentStmt = db.prepare(`INSERT INTO agent_log (timestamp, shift_date, station, user_name, status, status_duration_seconds, vicidial_state_color, campaign, calls_today) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        details.agents.forEach(agent => {
+            const durationParts = String(agent.time || '0:0').split(':');
+            const durationSeconds = parseInt(durationParts[0]) * 60 + parseInt(durationParts[1]);
+            agentStmt.run(timestamp, calculatedShiftDate, agent.station, agent.user, agent.status, durationSeconds, agent.stateColor, agent.campaign, agent.calls);
+        });
+        agentStmt.finalize();
 
-  } catch (error) {
-    console.error('Error inserting into database:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+        const waitingStmt = db.prepare(`INSERT INTO waiting_calls_log (timestamp, shift_date, campaign, dial_time_seconds) VALUES (?, ?, ?, ?)`);
+        details.waitingCalls.forEach(call => {
+            const durationParts = String(call.dialtime || '0:0').split(':');
+            const durationSeconds = parseInt(durationParts[0]) * 60 + parseInt(durationParts[1]);
+            waitingStmt.run(timestamp, calculatedShiftDate, call.campaign, durationSeconds);
+        });
+        waitingStmt.finalize();
 
-// GET endpoint for raw stats data
-app.get('/api/stats', (req, res) => {
-  try {
-    const { start, end, limit = 1000, offset = 0 } = req.query;
-
-    let query = 'SELECT * FROM stats';
-    let params = [];
-
-    if (start || end) {
-      query += ' WHERE';
-      const conditions = [];
-
-      if (start) {
-        conditions.push(' timestamp >= ?');
-        params.push(start);
-      }
-      if (end) {
-        conditions.push(' timestamp <= ?');
-        params.push(end);
-      }
-
-      query += conditions.join(' AND');
+        db.run('COMMIT');
+        res.json({ success: true });
+    } catch (error) {
+        db.run('ROLLBACK');
+        res.status(500).json({ success: false, error: error.message });
     }
+  });
+});
 
-    query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), parseInt(offset));
-
-    db.all(query, params, (err, rows) => {
-      if (err) {
-        console.error('Error fetching stats:', err);
-        res.status(500).json({ success: false, error: err.message });
-      } else {
-        res.json({ success: true, data: rows });
-      }
+app.get('/api/agent_log/by_shift/:shiftDate', (req, res) => {
+    const { shiftDate } = req.params;
+    db.all("SELECT * FROM agent_log WHERE shift_date = ? ORDER BY timestamp ASC", [shiftDate], (err, rows) => {
+        if (err) res.status(500).json({ success: false, error: err.message });
+        else res.json({ success: true, data: rows });
     });
-
-  } catch (error) {
-    console.error('Error in /api/stats:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
 });
 
-// GET endpoint for hourly aggregated data
-app.get('/api/stats/hourly', (req, res) => {
-  try {
-    const { start, end } = req.query;
-
-    let query = `
-            SELECT 
-                strftime('%Y-%m-%d %H:00:00', timestamp) as hour,
-                AVG(activeCalls) as avg_active_calls,
-                MAX(activeCalls) as max_active_calls,
-                MIN(activeCalls) as min_active_calls,
-                AVG(agentsLoggedIn) as avg_agents_logged_in,
-                AVG(waitingCalls) as avg_waiting_calls,
-                COUNT(*) as data_points
-            FROM stats
-        `;
-
-    let params = [];
-
-    if (start || end) {
-      query += ' WHERE';
-      const conditions = [];
-
-      if (start) {
-        conditions.push(' timestamp >= ?');
-        params.push(start);
-      }
-      if (end) {
-        conditions.push(' timestamp <= ?');
-        params.push(end);
-      }
-
-      query += conditions.join(' AND');
-    }
-
-    query += ' GROUP BY hour ORDER BY hour DESC';
-
-    db.all(query, params, (err, rows) => {
-      if (err) {
-        console.error('Error fetching hourly stats:', err);
-        res.status(500).json({ success: false, error: err.message });
-      } else {
-        res.json({ success: true, data: rows });
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in /api/stats/hourly:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// GET endpoint for daily aggregated data
-app.get('/api/stats/daily', (req, res) => {
-  try {
-    const { start, end } = req.query;
-
-    let query = `
-            SELECT 
-                date(timestamp) as day,
-                AVG(activeCalls) as avg_active_calls,
-                MAX(activeCalls) as max_active_calls,
-                MIN(activeCalls) as min_active_calls,
-                AVG(agentsLoggedIn) as avg_agents_logged_in,
-                AVG(waitingCalls) as avg_waiting_calls,
-                COUNT(*) as data_points
-            FROM stats
-        `;
-
-    let params = [];
-
-    if (start || end) {
-      query += ' WHERE';
-      const conditions = [];
-
-      if (start) {
-        conditions.push(' timestamp >= ?');
-        params.push(start);
-      }
-      if (end) {
-        conditions.push(' timestamp <= ?');
-        params.push(end);
-      }
-
-      query += conditions.join(' AND');
-    }
-
-    query += ' GROUP BY day ORDER BY day DESC';
-
-    db.all(query, params, (err, rows) => {
-      if (err) {
-        console.error('Error fetching daily stats:', err);
-        res.status(500).json({ success: false, error: err.message });
-      } else {
-        res.json({ success: true, data: rows });
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in /api/stats/daily:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  try {
-    const memoryUsage = process.memoryUsage();
-    const uptime = process.uptime();
-
-    const health = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      system: {
-        uptime: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
-        memory: {
-          used: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
-          total: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`
-        }
-      }
-    };
-    res.json(health);
-  } catch (error) {
-    res.status(500).json({
-      status: 'unhealthy',
-      timestamp: new Date().toISOString(),
-      error: error.message
-    });
-  }
-});
-
-
-app.get('/', (req, res) => {
-  res.send('Vicidial Monitor Backend is running. Send POST requests to /api/logs and GET requests to /api/stats');
-});
-
-// Start server with database initialization
+// --- Server Start ---
 async function startServer() {
   try {
     await initializeDatabase();
-
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`Database file: ${DB_FILE}`);
-      console.log('Available endpoints:');
-      console.log('  POST /api/logs - Insert stats from extension');
-      console.log('  GET  /api/stats - Get raw stats with pagination');
-      console.log('  GET  /api/stats/hourly - Get hourly aggregated stats');
-      console.log('  GET  /api/stats/daily - Get daily aggregated stats');
-      console.log('  GET  /api/health - Health check');
-    });
+    await loadSettings();
+    app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
@@ -326,3 +169,4 @@ async function startServer() {
 }
 
 startServer();
+
