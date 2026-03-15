@@ -37,9 +37,11 @@ function createPerformanceBar(value, width = 10) {
 }
 
 module.exports = async function dashboard() {
+    const REQUIRED_COLS = 140;
+    const REQUIRED_ROWS = 40;
     process.stdout.write('\x1b[?25l'); // Hide cursor
-    if (process.stdout.columns < 120 || process.stdout.rows < 40) {
-        console.error(chalk.red('Terminal size must be at least 120x40 for this dashboard.'));
+    if (process.stdout.columns < REQUIRED_COLS || process.stdout.rows < REQUIRED_ROWS) {
+        console.error(chalk.red(`Terminal size must be at least ${REQUIRED_COLS}x${REQUIRED_ROWS} for this dashboard.`));
         process.exit(1);
     }
 
@@ -79,6 +81,9 @@ module.exports = async function dashboard() {
 
             const artLines = newAscii.split('\n').map(line => chalk.white(line));
             const artWidth = 60;
+            const dataColumnWidth = 45;
+            const leftPadding = ' '.repeat(4);
+            const separator = '   ' + chalk.gray('│') + '   ';
 
             const dataRows = [
                 { label: 'System Status', header: true },
@@ -113,26 +118,28 @@ module.exports = async function dashboard() {
                         dataLine = '';
                     } else {
                         const labelStr = `  ${row.label}`;
-                        const labelPart = chalk.gray(labelStr.padEnd(20));
-                        const valueStr = row.value.toString();
-
                         if (row.label === 'CPU' || row.label === 'Memory') {
-                            dataLine = `${labelPart}${valueStr}`;
+                            const labelPart = chalk.gray(labelStr.padEnd(20));
+                            dataLine = `${labelPart}${row.value}`;
                         } else {
-                            const valuePadding = ' '.repeat(Math.max(1, 20 - valueStr.length));
+                            const valueStr = row.value.toString();
+                            const labelPart = chalk.gray(labelStr);
                             const valuePart = row.color ? row.color(valueStr) : chalk.white(valueStr);
-                            dataLine = `${labelPart}${valuePadding}${valuePart}`;
+                            const paddingWidth = dataColumnWidth - labelPart.length - valueStr.length - 2;
+                            const padding = ' '.repeat(Math.max(1, paddingWidth));
+                            dataLine = `${labelPart}${padding}${valuePart}`;
                         }
                     }
                 }
-                output.push(`${artLine}   ${dataLine}`);
+                output.push(leftPadding + artLine + separator + dataLine);
             }
             console.log(output.join('\n'));
 
             const healthStatus = 'Optimal';
             const dataStatus = 'Active';
-            const footer = `[ ${new Date().toLocaleTimeString()} | Health: ${chalk.green(healthStatus)} | Data: ${chalk.cyan(dataStatus)} | Calls: ${activeCalls} | Agents: ${agentsLoggedIn} | Queue: ${callsWaiting} | Leads: ${dialableLeads} | ${chalk.red('ESC to Exit')} ]`;
-            console.log('\n' + chalk.gray(footer.padEnd(119)));
+            const footerContent = `[ ${new Date().toLocaleTimeString()} | Health: ${chalk.green(healthStatus)} | Data: ${chalk.cyan(dataStatus)} | Calls: ${activeCalls} | Agents: ${agentsLoggedIn} | Queue: ${callsWaiting} | Leads: ${dialableLeads} | ${chalk.red('ESC to Exit')} ]`;
+            const totalWidth = artWidth + separator.length + dataColumnWidth;
+            console.log('\n' + leftPadding + chalk.gray(footerContent.padEnd(totalWidth)));
 
         } catch (error) {
             await cleanup();
