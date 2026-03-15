@@ -9,7 +9,7 @@ const statusCommand = require('./commands/status');
 const statsCommand = require('./commands/stats');
 const healthCommand = require('./commands/health');
 const monitorCommand = require('./commands/monitor');
-const dashboardCommand = require('./commands/dashboard');
+const dashboardCommand = require('./commands/dashboard'); // Ensure dashboard is imported
 
 // Handle chalk v5+ (ESM) vs v4 (CJS) compatibility
 let cyan, green, yellow;
@@ -87,7 +87,7 @@ program
   .option('-r, --refresh <seconds>', 'Refresh interval in seconds', '5')
   .action(monitorCommand);
 
-// Dashboard command
+// FIX: Register the dashboard command
 program
   .command('dashboard')
   .description('Professional terminal dashboard with fixed layout')

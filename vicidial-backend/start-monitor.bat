@@ -12,23 +12,10 @@ echo ║                            Vici Monitor - Professional Dashboard       
 echo ║                                    Medalert axcl2s System                                                  ║
 echo ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 echo.
-echo  Starting Professional Dashboard...
-echo  ╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-echo  ║  � Features:                                                                                                       ║  
-echo  ║  • Fixed Terminal Layout (120x40)                                                                              ║
-echo  ║  • Real-time Data Streaming                                                                                    ║
-echo  ║  • Professional Status Indicators                                                                              ║
-echo  ║  • 3-Row Info System (5 items per row)                                                                        ║
-echo  ║  • Live Extension Data Monitoring                                                                              ║
-echo  ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-echo.
 
-node src/cli dashboard
+echo Starting Vici-Monitor...
+node src/cli/index.js dashboard
 
 echo.
-echo ╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-echo ║                                    Vici Monitor Stopped Gracefully                                            ║
-echo ║                                    Medalert axcl2s System                                                  ║
-echo ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-echo.
-pause
+echo Press any key to continue . . .
+pause > nul
