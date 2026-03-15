@@ -21,9 +21,24 @@ export default function Login() {
 
   const handleLogin = async () => {
     try {
-      // The context expects a user object with username and role
-      await login({ username, role: "user" });
-      navigate("/");
+      const response = await fetch('http://localhost:3001/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const token = response.headers.get('Authorization')?.replace('Bearer ', '');
+        if (token) {
+          localStorage.setItem('token', token);
+        }
+        login(data.user);
+        navigate("/");
+      } else {
+        // Handle login failure
+        console.error("Failed to login");
+      }
     } catch (error) {
       console.error("Failed to login", error);
     }
