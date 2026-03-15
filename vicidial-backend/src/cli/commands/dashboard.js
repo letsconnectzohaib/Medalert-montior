@@ -1,9 +1,8 @@
 
 const chalk = require('chalk');
 const { newAscii } = require('../../utils/art');
-const CLIHelpers = require('../../utils/cli-helpers');
 
-// Main banner (cleaned up)
+// Main banner
 const logo = `
 ╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                                                      ║
@@ -36,7 +35,8 @@ function createProgressBar(value, max, width = 15) {
   return `${bar} ${percentage.toFixed(1)}%`;
 }
 
-function mergeColumns(leftArt, rightContent, artWidth = 60, rightPadding = 4) {
+// Reduced padding for a tighter layout
+function mergeColumns(leftArt, rightContent, artWidth = 50, rightPadding = 5) {
     const leftLines = leftArt.split('\n');
     const maxHeight = Math.max(leftLines.length, rightContent.length);
     let output = '';
@@ -50,7 +50,6 @@ function mergeColumns(leftArt, rightContent, artWidth = 60, rightPadding = 4) {
     return output;
 }
 
-// New function to build a perfectly aligned right column
 function buildRightColumn(data) {
     const lines = [];
     const maxLabelWidth = data.reduce((max, item) => {
@@ -76,10 +75,9 @@ function buildRightColumn(data) {
 // --- MAIN DASHBOARD FUNCTION ---
 
 module.exports = async function dashboard() {
-  process.stdout.write('\x1b[?25l'); // Hide cursor
-  
+  process.stdout.write('\x1b[?25l');
   const cleanup = () => {
-    process.stdout.write('\x1b[?25h'); // Show cursor
+    process.stdout.write('\x1b[?25h');
     console.clear();
   };
   
@@ -99,35 +97,24 @@ module.exports = async function dashboard() {
       const latest = await StatsModel.getLatestRecord();
       
       const data = latest ? JSON.parse(latest.raw_data) : { summary: {}, meta: {} };
-      const summary = data.summary || {};
-      const meta = data.meta || {};
-      
-      const activeCalls = summary.activeCalls || 0;
-      const agentsLoggedIn = summary.agentsLoggedIn || 0;
-      const agentsInCalls = summary.agentsInCalls || 0;
-      const waitingCalls = summary.waitingCalls || 0;
-      const dialLevel = meta.dialLevel || 'NORMAL';
-      const dialableLeads = meta.dialableLeads || 0;
+      const { activeCalls = 0, agentsLoggedIn = 0, agentsInCalls = 0, waitingCalls = 0 } = data.summary || {};
+      const { dialLevel = 'NORMAL', dialableLeads = 0 } = data.meta || {};
       const extensionStatus = latest ? chalk.green('ACTIVE') : chalk.yellow('WAITING');
       
       const cpuUsage = 25 + Math.sin(frame * 0.1) * 10;
       const memoryUsage = 45 + Math.cos(frame * 0.08) * 15;
       const networkIO = 15 + Math.sin(frame * 0.12) * 8;
       
-      function formatUptime(ms) {
-          let seconds = Math.floor(ms / 1000);
-          let minutes = Math.floor(seconds / 60);
-          let hours = Math.floor(minutes / 60);
-          seconds = seconds % 60;
-          minutes = minutes % 60;
-          return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
-      }
+      const formatUptime = (ms) => {
+          let s = Math.floor(ms / 1000);
+          let m = Math.floor(s / 60);
+          let h = Math.floor(m / 60);
+          return `${String(h).padStart(2, '0')}h ${String(m % 60).padStart(2, '0')}m ${String(s % 60).padStart(2, '0')}s`;
+      };
       const uptime = formatUptime(new Date() - startTime);
 
-      // --- 2. BUILD UI COMPONENTS (New Structured Way) ---
-      
+      // --- 2. BUILD UI COMPONENTS ---
       const rightColumnData = [
-          { isSpacer: true }, // Added for vertical alignment
           { isSpacer: true },
           { text: 'SYSTEM STATUS', isHeader: true },
           { label: 'Server:', value: chalk.green('ONLINE') },
@@ -147,41 +134,27 @@ module.exports = async function dashboard() {
           { label: 'Memory:', value: createProgressBar(memoryUsage, 100) },
           { label: 'Network:', value: createProgressBar(networkIO, 100) },
       ];
-
       const rightColumnContent = buildRightColumn(rightColumnData);
 
       // --- 3. RENDER THE DASHBOARD ---
       console.clear();
-
-      // Header
       console.log(chalk.cyan(logo));
       console.log('\n');
-      
-      // Main Content
       const twoColumnLayout = mergeColumns(newAscii, rightColumnContent);
       console.log(twoColumnLayout);
-      
-      // Live Stream
-      const streamHeader = chalk.magenta('╔' + '═'.repeat(100) + '╗');
-      const streamTitle = chalk.magenta('║') + chalk.white(' 📡 LIVE DATA STREAM ') + ' '.repeat(80) + chalk.magenta('║');
-      const streamFooter = chalk.magenta('╚' + '═'.repeat(100) + '╝');
-      
-      console.log(streamHeader);
-      console.log(streamTitle);
-      
-      const currentTime = new Date().toLocaleTimeString();
-      if (latest) {
-          console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.green('📊')} Data: ${chalk.white(`Calls:${activeCalls} Agents:${agentsLoggedIn} Queue:${waitingCalls}`)}`.padEnd(99) + chalk.magenta('║'));
-          console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.yellow('🎯')} Dial: ${chalk.white(dialLevel)} | ${chalk.magenta('📋')} Leads: ${chalk.white(dialableLeads.toLocaleString())}`.padEnd(99) + chalk.magenta('║'));
-      } else {
-          console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.yellow('⚠️')} No extension data received`.padEnd(99) + chalk.magenta('║'));
-      }
-      console.log(streamFooter);
-      console.log('\n');
 
-      // Footer
-      const footer = chalk.gray('  [ Health: ') + chalk.green('Optimal') + chalk.gray(' | Data Flow: ') + chalk.blue('Active') + chalk.gray(' | Actions: ') + chalk.red('(ESC) Exit') + chalk.gray(' ]');
-      console.log(footer);
+      // New dynamic status line footer
+      const currentTime = new Date().toLocaleTimeString();
+      let statusLine = chalk.gray(`[ ${currentTime} | Health: ${chalk.green('Optimal')} | Data: ${latest ? chalk.blue('Active') : chalk.yellow('Waiting')} | `);
+      if (latest) {
+          statusLine += `Calls: ${chalk.yellow(activeCalls)} | Agents: ${chalk.white(agentsLoggedIn)} | Queue: ${chalk.yellow(waitingCalls)} | Leads: ${chalk.white(dialableLeads.toLocaleString())} `;
+      } else {
+          statusLine += chalk.yellow('Waiting for extension data... ');
+      }
+      statusLine += chalk.gray(`| ${chalk.red('ESC: Exit')} ]`);
+
+      console.log('\n');
+      console.log(statusLine);
       
       await dbConnection.close();
       
