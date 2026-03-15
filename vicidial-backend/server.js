@@ -1,60 +1,17 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-<<<<<<< HEAD
-const fs = require('fs-extra');
-=======
-<<<<<<< HEAD
-const fs = require('fs-extra');
-=======
 const sqlite3 = require('sqlite3').verbose();
->>>>>>> 27758d3 (.)
->>>>>>> e52d234 (.)
 const path = require('path');
 
 const app = express();
 const PORT = 3000;
-<<<<<<< HEAD
-const LOG_FILE = path.join(__dirname, 'logs', 'vicidial_stats.jsonl');
-=======
-<<<<<<< HEAD
-const LOG_FILE = path.join(__dirname, 'logs', 'vicidial_stats.jsonl');
-=======
 const DB_FILE = path.join(__dirname, 'vicidial_stats.db');
->>>>>>> 27758d3 (.)
->>>>>>> e52d234 (.)
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> e52d234 (.)
-// Ensure logs directory exists
-fs.ensureDirSync(path.join(__dirname, 'logs'));
-
-// Endpoint to receive logs
-app.post('/api/logs', async (req, res) => {
-    try {
-        const logEntry = {
-            timestamp: new Date().toISOString(),
-            data: req.body
-        };
-
-        // Append to file (JSON Lines format)
-        await fs.appendFile(LOG_FILE, JSON.stringify(logEntry) + '\n');
-        
-        // Log to console (optional, just to see activity)
-        console.log(`[${logEntry.timestamp}] Received stats update`);
-
-        res.json({ success: true });
-    } catch (error) {
-        console.error('Error writing log:', error);
-<<<<<<< HEAD
-=======
-=======
 // Initialize SQLite database
 const db = new sqlite3.Database(DB_FILE, (err) => {
     if (err) {
@@ -303,28 +260,11 @@ app.get('/api/stats/daily', (req, res) => {
         
     } catch (error) {
         console.error('Error in /api/stats/daily:', error);
->>>>>>> 27758d3 (.)
->>>>>>> e52d234 (.)
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
 app.get('/', (req, res) => {
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> e52d234 (.)
-    res.send('Vicidial Monitor Backend is running. Send POST requests to /api/logs');
-});
-
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Logging data to: ${LOG_FILE}`);
-<<<<<<< HEAD
-});
-=======
-});
-=======
     res.send('Vicidial Monitor Backend is running. Send POST requests to /api/logs and GET requests to /api/stats');
 });
 
@@ -349,5 +289,3 @@ async function startServer() {
 }
 
 startServer();
->>>>>>> 27758d3 (.)
->>>>>>> e52d234 (.)
