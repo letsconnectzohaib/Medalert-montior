@@ -52,6 +52,8 @@ module.exports = async function dashboard() {
   let frame = 0;
   let lastDataTime = null;
   let lastValues = { waitingCalls: 0, handledCalls: 0 };
+  let peakWaiting = 0;
+  const AVG_HANDLE_TIME_SECONDS = 180; // Assumed average handle time
 
   const mainLoop = async () => {
     try {
@@ -64,61 +66,63 @@ module.exports = async function dashboard() {
           meta = data.meta || {};
           lastDataTime = new Date();
       }
-      const { activeCalls = 0, agentsLoggedIn = 0, agentsInCalls = 0, waitingCalls = 0, handledCalls = 0 } = summary;
+      const { agentsLoggedIn = 0, agentsInCalls = 0, agentsPaused = 0, waitingCalls = 0, handledCalls = 0 } = summary;
       const { dialLevel = 'N/A', dialableLeads = 0 } = meta;
       
       // --- 2. DERIVED & SIMULATED METRICS ---
-      const agentUtilization = agentsLoggedIn > 0 ? (agentsInCalls / agentsLoggedIn) * 100 : 0;
+      const agentsAvailable = agentsLoggedIn - agentsInCalls - agentsPaused;
       const uptime = ((ms) => `${String(Math.floor(ms / 3600000)).padStart(2, '0')}h ${String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0')}m ${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}s`)(new Date() - startTime);
       const droppedCalls = Math.max(0, (lastValues.waitingCalls - waitingCalls) + (handledCalls - lastValues.handledCalls));
       const asr = (handledCalls + droppedCalls) > 0 ? (handledCalls / (handledCalls + droppedCalls)) * 100 : 100;
-      const cpuUsage = 40 + Math.sin(frame * 0.2) * 20;
-      const memoryUsage = 60 + Math.cos(frame * 0.15) * 15;
+      const ttcSeconds = agentsAvailable > 0 ? (waitingCalls * AVG_HANDLE_TIME_SECONDS) / agentsAvailable : Infinity;
+      if(waitingCalls > peakWaiting) peakWaiting = waitingCalls;
 
       // --- 3. DYNAMIC STATUS & COLOR LOGIC ---
-      let masterStatus;
+      let masterStatus, secondaryStatus = '';
       if (waitingCalls > 10) masterStatus = chalk.bgRed.white.bold('  CRITICAL: HIGH QUEUE LOAD!  ');
       else if (droppedCalls > 5) masterStatus = chalk.bgRed.white.bold('  CRITICAL: HIGH DROP RATE!  ');
       else if (waitingCalls > 5) masterStatus = chalk.bgYellow.black.bold('  WARNING: QUEUE RISING  ');
       else if (dialableLeads < 50 && parseFloat(dialLevel) > 1) masterStatus = chalk.bgYellow.black.bold('  WARNING: LEADS RUNNING LOW  ');
       else masterStatus = chalk.bgGreen.black.bold('  SYSTEM NOMINAL  ');
 
-      let waitingCallsColor = waitingCalls > 5 ? chalk.yellow : chalk.white;
-      if (waitingCalls > 10) waitingCallsColor = chalk.red.bold;
+      if(agentsAvailable === 0 && waitingCalls > 0) secondaryStatus = chalk.bgYellow.black('  No agents available to handle queue!  ');
+      else if (agentsLoggedIn > 0 && (agentsPaused / agentsLoggedIn) > 0.5) secondaryStatus = chalk.bgYellow.black('  Over 50% of agents are paused.  ');
 
       // --- 4. UI STRUCTURE DEFINITION ---
-      const artLines = newAscii.split('\n').map(line => chalk.cyan(line));
+      const artLines = newAscii.split('\n').map(line => chalk.blue.bold(line));
       const artWidth = 55;
       const sidePadding = ' '.repeat(2);
       const separator = chalk.gray('│');
+      
+      const ttcFormatted = isFinite(ttcSeconds) ? `${Math.floor(ttcSeconds / 60)}m ${Math.floor(ttcSeconds % 60)}s` : '∞';
 
       const dataRows = [
-        { header: chalk.cyan.bold.underline('Campaign') },
+        { header: chalk.blue.bold.underline('Campaign') },
         { label: '  Dial Level', value: chalk.white(dialLevel) },
         { label: '  Dialable Leads', value: chalk.white(dialableLeads.toLocaleString()) },
         { spacer: true },
-        { header: chalk.cyan.bold.underline('Queue') },
-        { label: '  Calls Waiting', value: waitingCallsColor(waitingCalls.toString()) },
+        { header: chalk.blue.bold.underline('Queue') },
+        { label: '  Calls Waiting', value: `${chalk.yellow(waitingCalls.toString())} (Peak: ${peakWaiting})` },
         { label: '  Dropped Calls', value: chalk.red(droppedCalls.toString()) },
+        { label: '  Est. Time to Clear', value: chalk.white(ttcFormatted) },
         { label: '  Answer Rate (ASR)', value: createProgressBar(asr, 100) },
         { spacer: true },
-        { header: chalk.cyan.bold.underline('Agents') },
-        { label: '  Logged In', value: chalk.white(agentsLoggedIn.toString()) },
-        { label: '  In-Call', value: chalk.white(agentsInCalls.toString()) },
-        { label: '  Utilization', value: createProgressBar(agentUtilization, 100) },
+        { header: chalk.blue.bold.underline('Agents') },
+        { label: '  Available', value: chalk.green(agentsAvailable.toString()) },
+        { label: '  In-Call', value: chalk.yellow(agentsInCalls.toString()) },
+        { label: '  Paused', value: chalk.red(agentsPaused.toString()) },
         { spacer: true },
-        { header: chalk.cyan.bold.underline('System') },
+        { header: chalk.blue.bold.underline('System') },
         { label: '  Uptime', value: chalk.white(uptime) },
         { label: '  OS', value: chalk.white(os.type()) },
         { label: '  Node', value: chalk.white(process.version) },
-        { label: '  CPU', value: createProgressBar(cpuUsage, 100) },
-        { label: '  Memory', value: createProgressBar(memoryUsage, 100) },
       ];
       
       const maxLabelWidth = Math.max(...dataRows.filter(r => r.label).map(r => r.label.length));
 
       // --- 5. RENDER FRAME ---
       const output = [masterStatus];
+      if(secondaryStatus) output.push(secondaryStatus);
       const numLines = Math.max(artLines.length, dataRows.length);
 
       for (let i = 0; i < numLines; i++) {
