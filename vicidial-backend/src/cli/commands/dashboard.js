@@ -2,21 +2,6 @@
 const chalk = require('chalk');
 const { newAscii } = require('../../utils/art');
 
-// Main banner
-const logo = `
-╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-║                                                                                                                      ║
-║   █████   █████  ███            ███                            ██████   ██████                      ███   █████           ║
-║   ▒▒███   ▒▒███  ▒▒▒            ▒▒▒                            ▒▒██████ ██████                      ▒▒▒   ▒▒███           ║
-║    ▒███    ▒███  ████   ██████  ████                            ▒███▒█████▒███   ██████  ████████   ████  ███████    ██████  ████████   ║
-║    ▒███    ▒███ ▒▒███  ███▒▒███▒▒███        ██████████          ▒███▒▒███ ▒███  ███▒▒███▒▒███▒▒███ ▒▒███ ▒▒▒███▒    ███▒▒███▒▒███▒▒███   ║
-║    ▒▒███   ███   ▒███ ▒███ ▒▒▒  ▒███       ▒▒▒▒▒▒▒▒▒▒           ▒███ ▒▒▒  ▒███ ▒███ ▒███ ▒███ ▒███  ▒███   ▒███    ▒███ ▒███ ▒███ ▒▒▒   ║
-║     ▒▒▒█████▒    ▒███ ▒███  ███ ▒███                            ▒███      ▒███ ▒███ ▒███ ▒███ ▒███  ▒███   ▒███ ███▒███ ▒███ ▒███        ║
-║       ▒▒███      █████▒▒██████  █████                           █████     █████▒▒██████  ████ █████ █████  ▒▒█████ ▒▒██████  █████       ║
-║        ▒▒▒      ▒▒▒▒▒  ▒▒▒▒▒▒  ▒▒▒▒▒                           ▒▒▒▒▒     ▒▒▒▒▒  ▒▒▒▒▒▒  ▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒   ▒▒▒▒▒▒  ▒▒▒▒▒        ║
-║                                                                                                                      ║
-╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝`;
-
 // --- HELPER FUNCTIONS ---
 
 function createProgressBar(value, max, width = 15) {
@@ -35,7 +20,6 @@ function createProgressBar(value, max, width = 15) {
   return `${bar} ${percentage.toFixed(1)}%`;
 }
 
-// Reduced padding for a tighter layout
 function mergeColumns(leftArt, rightContent, artWidth = 50, rightPadding = 5) {
     const leftLines = leftArt.split('\n');
     const maxHeight = Math.max(leftLines.length, rightContent.length);
@@ -138,12 +122,10 @@ module.exports = async function dashboard() {
 
       // --- 3. RENDER THE DASHBOARD ---
       console.clear();
-      console.log(chalk.cyan(logo));
-      console.log('\n');
       const twoColumnLayout = mergeColumns(newAscii, rightColumnContent);
       console.log(twoColumnLayout);
 
-      // New dynamic status line footer
+      // Dynamic status line footer
       const currentTime = new Date().toLocaleTimeString();
       let statusLine = chalk.gray(`[ ${currentTime} | Health: ${chalk.green('Optimal')} | Data: ${latest ? chalk.blue('Active') : chalk.yellow('Waiting')} | `);
       if (latest) {
@@ -162,7 +144,7 @@ module.exports = async function dashboard() {
       console.clear();
       console.log(chalk.red.bold('An error occurred while rendering the dashboard:'));
       console.log(chalk.gray(error.stack));
-      process.stdout.write('\x1b[?25h');
+      process.stdout.write('\x1b[25h');
     }
     
     frame++;
