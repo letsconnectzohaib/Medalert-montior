@@ -40,7 +40,7 @@ function createPerformanceBar(value, width = 10) {
   const filled = Math.round(width * percentage);
   const empty = width - filled;
   const bar = chalk.yellow('█'.repeat(filled)) + chalk.gray('░'.repeat(empty));
-  return `${bar} ${value.toFixed(1)}%`.padStart(width + 8, ' ');
+  return `${bar} ${value.toFixed(1)}%`;
 }
 
 module.exports = async function dashboard() {
@@ -77,7 +77,7 @@ module.exports = async function dashboard() {
         agentsLoggedIn = 0,
         agentsInCalls = 0,
         callsWaiting = 0,
-        activeCalls = 0, // Re-added this field
+        activeCalls = 0,
       } = summary;
       const {
         dialLevel = 'NORMAL',
@@ -115,7 +115,7 @@ module.exports = async function dashboard() {
         { label: 'Memory', value: createPerformanceBar(memUsage) },
       ];
 
-      const maxLabelWidth = 20;
+      const dataColumnWidth = 38; 
 
       const output = [];
       const numLines = Math.max(artLines.length, dataRows.length + 2);
@@ -130,9 +130,18 @@ module.exports = async function dashboard() {
           } else if (row.spacer) {
             dataLine = '';
           } else {
-            const label = `  ${row.label}`.padEnd(maxLabelWidth);
-            const value = row.color ? row.color(row.value) : chalk.white(row.value);
-            dataLine = `${chalk.gray(label)}${value}`;
+            const labelStr = `  ${row.label}`;
+            if (row.label === 'CPU' || row.label === 'Memory') {
+                const labelPart = chalk.gray(labelStr.padEnd(16));
+                dataLine = `${labelPart}${row.value}`;
+            } else {
+                const valueStr = row.value.toString();
+                const labelPart = chalk.gray(labelStr);
+                const valuePart = row.color ? row.color(valueStr) : chalk.white(valueStr);
+                const paddingWidth = dataColumnWidth - labelStr.length - valueStr.length;
+                const padding = ' '.repeat(Math.max(1, paddingWidth));
+                dataLine = `${labelPart}${padding}${valuePart}`;
+            }
           }
         }
         output.push(`${artLine}   ${dataLine}`);
@@ -153,13 +162,13 @@ module.exports = async function dashboard() {
     }
   };
 
-  const interval = setInterval(mainLoop, 1500); // Interval set to 1.5s for better CPU reading
+  const interval = setInterval(mainLoop, 1500);
 
   process.stdin.setRawMode(true);
   process.stdin.resume();
   process.stdin.on('data', (key) => {
     const char = key.toString();
-    if (char === '\u0003' || char === 'q' || char === '\u001b') { // CTRL+C, q, or ESC
+    if (char === '\u0003' || char === 'q' || char === '\u001b') {
       clearInterval(interval);
       cleanup();
     }
