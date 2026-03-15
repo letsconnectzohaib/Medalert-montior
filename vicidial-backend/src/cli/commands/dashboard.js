@@ -45,7 +45,7 @@ module.exports = async function dashboard() {
         try {
             execSync(`mode con: cols=${REQUIRED_COLS} lines=${REQUIRED_ROWS}`);
         } catch (error) {
-            console.warn(chalk.yellow('Failed to auto-resize terminal. Please adjust manually.'));
+            // Error is ignored, the size check below will handle it
         }
     }
 
@@ -146,11 +146,21 @@ module.exports = async function dashboard() {
             }
             console.log(output.join('\n'));
 
+            // --- 4. FOOTER RENDER ---
             const healthStatus = 'Optimal';
             const dataStatus = 'Active';
-            const footerContent = `[ ${new Date().toLocaleTimeString()} | Health: ${chalk.green(healthStatus)} | Data: ${chalk.cyan(dataStatus)} | Calls: ${activeCalls} | Agents: ${agentsLoggedIn} | Queue: ${callsWaiting} | Leads: ${dialableLeads} | ${chalk.red('ESC to Exit')} ]`;
-            const totalWidth = artWidth + separator.length + dataColumnWidth;
-            console.log('\n' + leftPadding + chalk.gray(footerContent.padEnd(totalWidth)));
+            const time = new Date().toLocaleTimeString();
+
+            const footerContent = chalk.gray(`[ ${time} | Health: `) + chalk.green(healthStatus) + chalk.gray(` | Data: `) + chalk.cyan(dataStatus) + chalk.gray(` | Calls: ${activeCalls} | Agents: ${agentsLoggedIn} | Queue: ${callsWaiting} | Leads: ${dialableLeads} | `) + chalk.red('ESC to Exit') + chalk.gray(' ]');
+            const cleanFooterContent = footerContent.replace(/\u001b\[[0-9;]*m/g, '');
+            const cleanSeparator = separator.replace(/\u001b\[[0-9;]*m/g, '');
+            const totalContentWidth = artWidth + cleanSeparator.length + dataColumnWidth;
+            const footerPadding = ' '.repeat(Math.max(0, totalContentWidth - cleanFooterContent.length));
+
+            const blankSeparatorLine = leftPadding + ' '.repeat(artWidth) + separator;
+
+            console.log(blankSeparatorLine);
+            console.log(leftPadding + footerContent + footerPadding);
 
         } catch (error) {
             await cleanup();
