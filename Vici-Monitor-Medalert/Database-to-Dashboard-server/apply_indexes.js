@@ -14,25 +14,49 @@ const db = new sqlite3.Database(dbPath, (err) => {
     console.log('Connected to the SQLite database.');
 });
 
-// Read the SQL script
-fs.readFile(sqlScriptPath, 'utf8', (err, sql) => {
-    if (err) {
-        return console.error('Error reading SQL script:', err.message);
-    }
-
-    // Execute the SQL script
-    db.exec(sql, (err) => {
+db.serialize(() => {
+    // Step 1: Ensure the agent_log table exists, mirroring the logic from database.js
+    db.run(`CREATE TABLE IF NOT EXISTS agent_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp DATETIME NOT NULL,
+      agent_id TEXT NOT NULL,
+      agent_status TEXT,
+      vicidial_state_color TEXT,
+      shift_date TEXT NOT NULL,
+      campaign TEXT,
+      agent_group TEXT
+    )`, (err) => {
         if (err) {
-            return console.error('Error executing script:', err.message);
+            console.error('Error creating agent_log table:', err.message);
+            db.close();
+            return;
         }
-        console.log('Indexes added successfully!');
+        console.log('Ensured agent_log table exists.');
 
-        // Close the database connection
-        db.close((err) => {
+        // Step 2: Read the SQL script to add indexes
+        fs.readFile(sqlScriptPath, 'utf8', (err, sql) => {
             if (err) {
-                return console.error('Error closing database:', err.message);
+                console.error('Error reading SQL script:', err.message);
+                db.close();
+                return;
             }
-            console.log('Database connection closed.');
+
+            // Step 3: Execute the indexing script
+            db.exec(sql, (err) => {
+                if (err) {
+                    console.error('Error executing indexing script:', err.message);
+                } else {
+                    console.log('Indexes added successfully!');
+                }
+
+                // Step 4: Close the database connection
+                db.close((err) => {
+                    if (err) {
+                        return console.error('Error closing database:', err.message);
+                    }
+                    console.log('Database connection closed.');
+                });
+            });
         });
     });
 });

@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,6 +21,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ShiftSummary from "./pages/ShiftSummary";
 import { DashboardLayout } from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
+import ErrorBoundary from "@/components/ErrorBoundary"; // Import the ErrorBoundary
 
 const queryClient = new QueryClient();
 
@@ -36,35 +38,37 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/agents" element={<AgentPerformance />} />
-              <Route path="/live" element={<LiveFeed />} />
-              <Route path="/queue" element={<QueueMonitor />} />
-              <Route path="/sla" element={<SLADashboard />} />
-              <Route path="/analytics" element={<CallAnalytics />} />
-              <Route path="/trends" element={<Trends />} />
-              <Route path="/reports" element={<ShiftReports />} />
-              <Route path="/capacity" element={<CapacityPlanning />} />
-              <Route path="/timeline" element={<ShiftTimeline />} />
-              <Route path="/connection" element={<ConnectionPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/shift-summary" element={<ShiftSummary />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+              <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/agents" element={<AgentPerformance />} />
+                <Route path="/live" element={<LiveFeed />} />
+                <Route path="/queue" element={<QueueMonitor />} />
+                <Route path="/sla" element={<SLADashboard />} />
+                <Route path="/analytics" element={<CallAnalytics />} />
+                <Route path="/trends" element={<Trends />} />
+                <Route path="/reports" element={<ShiftReports />} />
+                <Route path="/capacity" element={<CapacityPlanning />} />
+                <Route path="/timeline" element={<ShiftTimeline />} />
+                <Route path="/connection" element={<ConnectionPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/shift-summary" element={<ShiftSummary />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

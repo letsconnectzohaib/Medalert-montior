@@ -23,18 +23,18 @@
 
 -   [x] **Database Performance:**
     -   [x] Create a new SQL script to add indexes to the `agent_log` table for `campaign`, `user_group`, and `timestamp`.
-    -   [ ] Execute the indexing script on the database.
--   [ ] **API Security:**
-    -   [ ] Implement rate limiting on authentication endpoints (`/api/auth/login`) to prevent brute-force attacks.
--   [ ] **Frontend Reliability:**
-    -   [ ] Wrap key components in React Error Boundaries to prevent UI crashes from unexpected data or errors.
+    -   [x] Execute the indexing script on the database.
+-   [x] **API Security:**
+    -   [x] Implement rate limiting on authentication endpoints (`/api/auth/login`) to prevent brute-force attacks.
+-   [x] **Frontend Reliability:**
+    -   [x] Wrap key components in React Error Boundaries to prevent UI crashes from unexpected data or errors.
 -   [x] **Functionality Fixes:**
     -   [x] Correct the broken query in the summary routes (the one referencing `vicidial_log`).
     -   [x] Fix the login endpoint to return the standardized response format.
     -   [x] Add proper 401/403 error handling to the token verification middleware.
     -   [x] Correct the column name mismatch for filtering (`agent_group` vs `group`).
--   [ ] **Database Connection Management:**
-    -   [ ] Implement connection pooling to handle concurrent requests more efficiently.
+-   [x] **Database Connection Management:**
+    -   [x] Implement connection pooling to handle concurrent requests more efficiently.
 
 ---
 
