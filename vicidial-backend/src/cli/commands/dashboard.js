@@ -7,7 +7,7 @@ const StatsModel = require('../../database/models/Stats');
 
 // --- HELPER FUNCTIONS ---
 
-function createProgressBar(value, max, width = 15) {
+function createProgressBar(value, max, width = 12) {
   const percentage = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   const filled = Math.round((width * percentage) / 100);
   let bar = '';
@@ -22,20 +22,6 @@ function createProgressBar(value, max, width = 15) {
   }
   const percentageString = `${percentage.toFixed(1)}%`.padStart(6, ' ');
   return `${bar} ${percentageString}`;
-}
-
-function createSparkline(history, width = 10) {
-    const sparks = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-    const max = Math.max(...history);
-    if (history.length === 0) return ' '.repeat(width);
-    let line = history.slice(-width).map(v => sparks[Math.round((v / (max || 1)) * (sparks.length - 1))]).join('');
-    return line.padEnd(width);
-}
-
-function getTrend(current, previous) {
-    if (current > previous) return chalk.green.bold('↑');
-    if (current < previous) return chalk.red.bold('↓');
-    return ' ';
 }
 
 // --- MAIN DASHBOARD FUNCTION ---
@@ -65,16 +51,15 @@ module.exports = async function dashboard() {
 
   let frame = 0;
   let lastDataTime = null;
-  let lastValues = { waitingCalls: 0, activeCalls: 0, agentsLoggedIn: 0, handledCalls: 0 };
-  let waitHistory = [];
+  let lastValues = { waitingCalls: 0, handledCalls: 0 };
 
   const mainLoop = async () => {
     try {
       // --- 1. DATA FETCHING ---
       const latest = await StatsModel.getLatestRecord();
-      let data, summary = {}, meta = {};
+      let summary = {}, meta = {};
       if(latest) {
-          data = JSON.parse(latest.raw_data);
+          const data = JSON.parse(latest.raw_data);
           summary = data.summary || {};
           meta = data.meta || {};
           lastDataTime = new Date();
@@ -85,55 +70,44 @@ module.exports = async function dashboard() {
       // --- 2. DERIVED & SIMULATED METRICS ---
       const agentUtilization = agentsLoggedIn > 0 ? (agentsInCalls / agentsLoggedIn) * 100 : 0;
       const uptime = ((ms) => `${String(Math.floor(ms / 3600000)).padStart(2, '0')}h ${String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0')}m ${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}s`)(new Date() - startTime);
-      const cpuUsage = 30 + Math.sin(frame * 0.1) * 15;
-      const memoryUsage = 50 + Math.cos(frame * 0.08) * 20;
-      const avgWaitTime = waitingCalls * (2.5 + Math.sin(frame * 0.2)) * 3; 
-
-      waitHistory.push(waitingCalls);
-      if (waitHistory.length > 30) waitHistory.shift();
-
-      const droppedCalls = Math.max(0, (lastValues.waitingCalls - waitingCalls) - (handledCalls - lastValues.handledCalls));
-      const asr = (handledCalls + droppedCalls) > 0 ? (handledCalls / (handledCalls + droppedCalls)) * 100 : 0;
+      const droppedCalls = Math.max(0, (lastValues.waitingCalls - waitingCalls) + (handledCalls - lastValues.handledCalls));
+      const asr = (handledCalls + droppedCalls) > 0 ? (handledCalls / (handledCalls + droppedCalls)) * 100 : 100;
+      const cpuUsage = 40 + Math.sin(frame * 0.2) * 20;
+      const memoryUsage = 60 + Math.cos(frame * 0.15) * 15;
 
       // --- 3. DYNAMIC STATUS & COLOR LOGIC ---
-      let systemStatus, waitTimeColor, waitingCallsColor;
+      let masterStatus;
+      if (waitingCalls > 10) masterStatus = chalk.bgRed.white.bold('  CRITICAL: HIGH QUEUE LOAD!  ');
+      else if (droppedCalls > 5) masterStatus = chalk.bgRed.white.bold('  CRITICAL: HIGH DROP RATE!  ');
+      else if (waitingCalls > 5) masterStatus = chalk.bgYellow.black.bold('  WARNING: QUEUE RISING  ');
+      else if (dialableLeads < 50 && parseFloat(dialLevel) > 1) masterStatus = chalk.bgYellow.black.bold('  WARNING: LEADS RUNNING LOW  ');
+      else masterStatus = chalk.bgGreen.black.bold('  SYSTEM NOMINAL  ');
 
-      if (droppedCalls > 5 && waitingCalls < lastValues.waitingCalls) systemStatus = chalk.red.bold('High Drop-off Rate!');
-      else if (waitingCalls > 10) systemStatus = chalk.red.bold('High Queue Load!');
-      else if (waitingCalls > 5) systemStatus = chalk.yellow('Queue Rising');
-      else if (dialableLeads < 100 && parseFloat(dialLevel) > 3) systemStatus = chalk.yellow.bold('Leads Low for Dial Level!');
-      else if (agentUtilization < 30 && agentsLoggedIn > 1) systemStatus = chalk.yellow('Low Agent Utilization');
-      else systemStatus = chalk.green('Nominal');
+      let waitingCallsColor = waitingCalls > 5 ? chalk.yellow : chalk.white;
+      if (waitingCalls > 10) waitingCallsColor = chalk.red.bold;
 
-      if(avgWaitTime > 120) waitTimeColor = chalk.red.bold;
-      else if(avgWaitTime > 60) waitTimeColor = chalk.yellow;
-      else waitTimeColor = chalk.white;
-
-      if(waitingCalls > 10) waitingCallsColor = chalk.red.bold;
-      else if(waitingCalls > 0) waitingCallsColor = chalk.yellow;
-      else waitingCallsColor = chalk.white;
-
-      // --- 4. UI STRUCTURE WITH FINAL POLISH ---
-      const artLines = newAscii.split('\n');
+      // --- 4. UI STRUCTURE DEFINITION ---
+      const artLines = newAscii.split('\n').map(line => chalk.cyan(line));
       const artWidth = 55;
       const sidePadding = ' '.repeat(2);
       const separator = chalk.gray('│');
 
       const dataRows = [
-        { header: chalk.magenta.bold.underline('Vitals') },
-        { label: '  Status', value: systemStatus },
-        { label: '  Dial Level', value: chalk.cyan(dialLevel) },
+        { header: chalk.cyan.bold.underline('Campaign') },
+        { label: '  Dial Level', value: chalk.white(dialLevel) },
         { label: '  Dialable Leads', value: chalk.white(dialableLeads.toLocaleString()) },
         { spacer: true },
-        { header: chalk.magenta.bold.underline('Live Metrics') },
-        { label: '  Agents Logged In', value: `${chalk.white(agentsLoggedIn.toString())} ${getTrend(agentsLoggedIn, lastValues.agentsLoggedIn)}` },
-        { label: '  Active Calls', value: `${chalk.yellow(activeCalls.toString())} ${getTrend(activeCalls, lastValues.activeCalls)}` },
-        { label: chalk.yellow.bold('  Calls Waiting'), value: `${waitingCallsColor(waitingCalls.toString())} ${createSparkline(waitHistory)} ${getTrend(waitingCalls, lastValues.waitingCalls)}` },
-        { label: '  Avg. Wait Time', value: waitTimeColor(`${Math.floor(avgWaitTime / 60)}m ${Math.floor(avgWaitTime % 60)}s`) },
-        { label: '  Agent Utilization', value: createProgressBar(agentUtilization, 100) },
+        { header: chalk.cyan.bold.underline('Queue') },
+        { label: '  Calls Waiting', value: waitingCallsColor(waitingCalls.toString()) },
+        { label: '  Dropped Calls', value: chalk.red(droppedCalls.toString()) },
         { label: '  Answer Rate (ASR)', value: createProgressBar(asr, 100) },
         { spacer: true },
-        { header: chalk.magenta.bold.underline('System') },
+        { header: chalk.cyan.bold.underline('Agents') },
+        { label: '  Logged In', value: chalk.white(agentsLoggedIn.toString()) },
+        { label: '  In-Call', value: chalk.white(agentsInCalls.toString()) },
+        { label: '  Utilization', value: createProgressBar(agentUtilization, 100) },
+        { spacer: true },
+        { header: chalk.cyan.bold.underline('System') },
         { label: '  Uptime', value: chalk.white(uptime) },
         { label: '  OS', value: chalk.white(os.type()) },
         { label: '  Node', value: chalk.white(process.version) },
@@ -141,10 +115,10 @@ module.exports = async function dashboard() {
         { label: '  Memory', value: createProgressBar(memoryUsage, 100) },
       ];
       
-      const maxLabelWidth = Math.max(...dataRows.filter(r => r.label).map(r => r.label.replace(/\u001b\[[0-9;]*m/g, '').length));
+      const maxLabelWidth = Math.max(...dataRows.filter(r => r.label).map(r => r.label.length));
 
       // --- 5. RENDER FRAME ---
-      const output = [];
+      const output = [masterStatus];
       const numLines = Math.max(artLines.length, dataRows.length);
 
       for (let i = 0; i < numLines; i++) {
@@ -155,9 +129,8 @@ module.exports = async function dashboard() {
           if (row.header) dataLine = row.header;
           else if (row.spacer) dataLine = '';
           else if (row.label) {
-            const plainLabel = row.label.replace(/\u001b\[[0-9;]*m/g, '');
-            const padding = ' '.repeat(maxLabelWidth - plainLabel.length);
-            dataLine = `${row.label}${padding}  ${row.value}`;
+            const padding = ' '.repeat(maxLabelWidth - row.label.length);
+            dataLine = `${chalk.white.bold(row.label)}${padding}  ${row.value}`;
           }
         }
         output.push(artLine + sidePadding + separator + sidePadding + dataLine);
@@ -168,7 +141,7 @@ module.exports = async function dashboard() {
 
       // --- 6. FOOTER ---
       let dataFeedStatus;
-      if(lastDataTime === null) dataFeedStatus = chalk.red('● No Data');
+      if (!lastDataTime) dataFeedStatus = chalk.red('● No Data');
       else {
           const secondsAgo = Math.floor((new Date() - lastDataTime) / 1000);
           if(secondsAgo > 10) dataFeedStatus = chalk.red(`● Stale (${secondsAgo}s)`);
@@ -176,11 +149,11 @@ module.exports = async function dashboard() {
           else dataFeedStatus = chalk.blue(`● Live`);
       }
       const currentTime = new Date().toLocaleTimeString();
-      const statusLine = chalk.gray(`[ ${currentTime} | Data Feed: ${dataFeedStatus} | ${chalk.red('ESC to Exit')} ]`);
+      const statusLine = chalk.gray(`[ ${currentTime} | ${dataFeedStatus} | Frames: ${frame} | ${chalk.red('ESC to Exit')} ]`);
       console.log('\n' + statusLine);
 
-      // --- 7. UPDATE STATE FOR NEXT FRAME ---
-      lastValues = { waitingCalls, activeCalls, agentsLoggedIn, handledCalls };
+      // --- 7. UPDATE STATE ---
+      lastValues = { waitingCalls, handledCalls };
       frame++;
       
     } catch (error) {
@@ -191,14 +164,12 @@ module.exports = async function dashboard() {
     } 
   };
 
-  // --- RUN LOOP ---
-  const interval = setInterval(mainLoop, 1000); // Increased refresh rate for smoother sparklines
-
+  const interval = setInterval(mainLoop, 1000);
   process.stdin.setRawMode(true);
   process.stdin.resume();
   process.stdin.on('data', (key) => {
     const char = key.toString();
-    if (char === '\u0003' || char === 'q' || char === '\u001b') { // Ctrl+C, 'q', or ESC
+    if (char === '\u0003' || char === 'q' || char === '\u001b') {
       clearInterval(interval);
       cleanup();
     }
