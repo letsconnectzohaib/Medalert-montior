@@ -3,13 +3,19 @@ import { useState, useEffect } from 'react';
 import { Container, Grid, Paper, Typography, CircularProgress, Select, MenuItem, InputLabel, FormControl, TextField } from '@mui/material';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+// Fetches trends data from the frontend API proxy
 async function fetchTrendsData(type, endDate, filters) {
     const { campaign, group } = filters;
     const queryParams = new URLSearchParams({ type, endDate, campaign, group });
     const response = await fetch(`/api/trends?${queryParams.toString()}`);
+    
+    // The proxy will return a 500/400 on network/auth error, which this handles.
     if(!response.ok) {
-        throw new Error(`Failed to fetch ${type} trends`);
+        const errorInfo = await response.json();
+        throw new Error(errorInfo.error || `Failed to fetch ${type} trends`);
     }
+    
+    // The proxy returns the JSON from the backend, which includes the { success, data, error } structure.
     return response.json();
 }
 
@@ -49,13 +55,23 @@ export default function Trends() {
 
   useEffect(() => {
     setLoading(true);
+    setError(null); // Reset error on new data fetch
+
     Promise.all([
         fetchTrendsData('historical', endDate, filters),
         fetchTrendsData('heatmap', endDate, filters)
     ])
-    .then(([historical, heatmap]) => {
-        // Process historical data for charts
-        const processed = historical.data.reduce((acc, curr) => {
+    .then(([historicalRes, heatmapRes]) => {
+        // Check for backend-level success on BOTH responses
+        if (!historicalRes.success) {
+            throw new Error(historicalRes.error || 'Failed to fetch historical trends.');
+        }
+        if (!heatmapRes.success) {
+            throw new Error(heatmapRes.error || 'Failed to fetch heatmap data.');
+        }
+
+        // Both successful, now process the data
+        const processed = historicalRes.data.reduce((acc, curr) => {
             const date = curr.shift_date;
             if (!acc[date]) {
                 acc[date] = { shift_date: date, total_calls: 0, ready: 0, paused: 0 };
@@ -65,12 +81,15 @@ export default function Trends() {
             if (curr.vicidial_state_color === '#ef9a9a') acc[date].paused = curr.status_count;
             return acc;
         }, {});
+        
         setHistoricalData(Object.values(processed));
-        setHeatmapData(heatmap.data);
-        setLoading(false);
+        setHeatmapData(heatmapRes.data);
     })
     .catch(err => {
+        // Catches both network errors and the explicit errors thrown above
         setError(err.message);
+    })
+    .finally(() => {
         setLoading(false);
     });
   }, [endDate, filters]);
@@ -79,9 +98,6 @@ export default function Trends() {
     const { name, value } = event.target;
     setFilters(prev => ({ ...prev, [name]: value }));
   };
-
-  if (loading) return <CircularProgress />;
-  if (error) return <Typography color="error">{error}</Typography>;
 
   return (
     <Container maxWidth="lg">
@@ -118,22 +134,26 @@ export default function Trends() {
         </Grid>
       </Grid>
 
-      <Grid container spacing={4}>
-        <Grid item xs={12}>
-            <Typography variant="h6">Historical Call Volume (30 days)</Typography>
-            <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={historicalData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="shift_date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="total_calls" fill="#8884d8" name="Total Calls" />
-                </BarChart>
-            </ResponsiveContainer>
-        </Grid>
-        {/* Heatmap can be implemented here using heatmapData */}
-      </Grid>
+        {loading && <CircularProgress />}
+        {error && <Typography color="error">Error: {error}</Typography>}
+        {!loading && !error && (
+            <Grid container spacing={4}>
+                <Grid item xs={12}>
+                    <Typography variant="h6">Historical Call Volume (30 days)</Typography>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={historicalData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="shift_date" />
+                            <YAxis />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="total_calls" fill="#8884d8" name="Total Calls" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Grid>
+                {/* Heatmap can be implemented here using heatmapData */}
+            </Grid>
+        )}
     </Container>
   );
 }

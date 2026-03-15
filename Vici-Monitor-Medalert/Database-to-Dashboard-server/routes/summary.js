@@ -2,45 +2,63 @@
 const express = require('express');
 const router = express.Router();
 
-// Base GET /api/summary?shiftDate=YYYY-MM-DD
+// GET /api/summary?shiftDate=YYYY-MM-DD
+// Securely fetches a summary of agent activity for a given date, with optional filters.
 router.get('/', async (req, res) => {
   const { shiftDate, campaign, group } = req.query;
+
+  // 1. Validate Input
   if (!shiftDate || !shiftDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
     return res.status(400).json({ success: false, error: 'Invalid or missing date format. Use YYYY-MM-DD.' });
   }
 
   const db = req.db;
-  let filterClause = '';
-  const filterParams = [shiftDate];
+  const params = [shiftDate];
+  const filterClauses = [];
+
+  // 2. Securely Build Filter Query
+  // Each parameter is added to the `params` array, not concatenated into the string.
   if (campaign) {
-      filterClause += ' AND campaign = ?';
-      filterParams.push(campaign);
+    filterClauses.push('campaign = ?');
+    params.push(campaign);
   }
   if (group) {
-      filterClause += ' AND agent_group = ?';
-      filterParams.push(group);
+    // Assuming the column is 'user_group'. This prevents injection on the column name itself.
+    filterClauses.push('user_group = ?');
+    params.push(group);
   }
 
-  try {
-    // Example of a summary query - adapt this to your needs
-    const summaryQuery = `
-        SELECT 
-            COUNT(DISTINCT user) as total_agents,
-            SUM(CASE WHEN status = 'PAUSED' THEN 1 ELSE 0 END) as paused_agents,
-            SUM(CASE WHEN status = 'INCALL' THEN 1 ELSE 0 END) as incall_agents,
-            SUM(CASE WHEN status = 'READY' THEN 1 ELSE 0 END) as waiting_agents,
-            (SELECT COUNT(*) FROM vicidial_log WHERE call_date LIKE ? || '%') as total_calls
-        FROM agent_log 
-        WHERE shift_date = ? ${filterClause}
-    `;
-    
-    // Note: The total_calls subquery might need adjustment based on your schema and needs
-    const summaryData = await db.get(summaryQuery, [shiftDate, ...filterParams]);
-    res.json({ success: true, data: summaryData });
+  // Combine filter clauses safely
+  const filterQuery = filterClauses.length > 0 ? `AND ${filterClauses.join(' AND ')}` : '';
 
-  } catch (err) {
-      console.error("Error in base summary endpoint:", err.message);
-      res.status(500).json({ success: false, error: 'Database query for summary failed' });
+  const sql = `
+    SELECT 
+      agent_status, 
+      vicidial_state_color,
+      COUNT(*) as status_count
+    FROM agent_log 
+    WHERE shift_date = ? ${filterQuery}
+    GROUP BY agent_status, vicidial_state_color
+    ORDER BY status_count DESC;
+  `;
+
+  // 3. Execute Query with Consistent Async/Await and Error Handling
+  try {
+    const rows = await new Promise((resolve, reject) => {
+      db.all(sql, params, (err, rows) => {
+        if (err) {
+          // On failure, reject the promise with the error
+          reject(err);
+        } else {
+          // On success, resolve the promise with the data
+          resolve(rows);
+        }
+      });
+    });
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Database query failed:', error);
+    res.status(500).json({ success: false, error: 'Failed to retrieve summary data.' });
   }
 });
 
