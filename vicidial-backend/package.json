@@ -1,6 +1,10 @@
 {
   "name": "vicidial-monitor-backend",
   "version": "1.0.0",
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> e52d234 (.)
   "description": "Backend server for Vicidial Stats Monitor",
   "main": "server.js",
   "scripts": {
@@ -13,4 +17,46 @@
     "express": "^4.22.1",
     "fs-extra": "^11.3.4"
   }
+<<<<<<< HEAD
+=======
+=======
+  "description": "Professional CLI backend for ViciDial Stats Monitor",
+  "main": "src/cli/index.js",
+  "bin": {
+    "vicidial-monitor": "./src/cli/index.js"
+  },
+  "scripts": {
+    "start": "node src/cli start",
+    "dev": "nodemon src/cli start",
+    "status": "node src/cli status",
+    "stats": "node src/cli stats",
+    "health": "node src/cli health",
+    "monitor": "node src/cli monitor"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.4",
+    "boxen": "^5.1.2",
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.4",
+    "commander": "^11.1.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.22.1",
+    "ora": "^5.4.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "keywords": [
+    "vicidial",
+    "call-center",
+    "monitoring",
+    "cli",
+    "dashboard"
+  ],
+  "author": "Mr. Zohaib",
+  "license": "MIT"
+>>>>>>> 27758d3 (.)
+>>>>>>> e52d234 (.)
 }
