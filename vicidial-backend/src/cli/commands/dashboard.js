@@ -1,8 +1,9 @@
+
 const chalk = require('chalk');
-const ora = require('ora');
+const { newAscii } = require('../../utils/art');
 const CLIHelpers = require('../../utils/cli-helpers');
 
-// ASCII Art Logo
+// Main banner
 const logo = `
 ╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                                                      ║
@@ -15,18 +16,15 @@ const logo = `
 ║       ▒▒███      █████▒▒██████  █████                           █████     █████▒▒██████  ████ █████ █████  ▒▒█████ ▒▒██████  █████       ║
 ║        ▒▒▒      ▒▒▒▒▒  ▒▒▒▒▒▒  ▒▒▒▒▒                           ▒▒▒▒▒     ▒▒▒▒▒  ▒▒▒▒▒▒  ▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒   ▒▒▒▒▒▒  ▒▒▒▒▒        ║
 ║                                                                                                                      ║
-║                                                                                                                      ║
-║                                                                                                                      ║
 ║                                              🏥 Vici Monitor - Professional Dashboard                                ║
 ║                                                    Medalert axcl2s System                                          ║
 ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝`;
 
-// Progress bar with gradient
+// --- HELPER FUNCTIONS ---
+
 function createProgressBar(value, max, width = 20) {
   const percentage = Math.min(100, (value / max) * 100);
   const filled = Math.round(width * percentage / 100);
-  const empty = width - filled;
-  
   let bar = '';
   for (let i = 0; i < width; i++) {
     if (i < filled) {
@@ -40,12 +38,26 @@ function createProgressBar(value, max, width = 20) {
   return `${bar} ${percentage.toFixed(1)}%`;
 }
 
-// Box drawing characters
-const box = {
-  tl: '╔', tr: '╗', bl: '╚', br: '╝',
-  h: '═', v: '║', cross: '╬',
-  tright: '╣', tleft: '╠', bright: '╩', bleft: '╦'
-};
+function mergeColumns(leftArt, rightContent, artWidth = 60, rightPadding = 4) {
+    const leftLines = leftArt.split('\n');
+    const maxHeight = Math.max(leftLines.length, rightContent.length);
+    let output = '';
+
+    for (let i = 0; i < maxHeight; i++) {
+        const leftLine = leftLines[i] || '';
+        const rightLine = rightContent[i] || '';
+        const paddedLeft = leftLine.padEnd(artWidth);
+        output += paddedLeft + ' '.repeat(rightPadding) + rightLine + '\n';
+    }
+    return output;
+}
+
+function createInfoLine(label, value, labelWidth = 18) {
+    const paddedLabel = label.padEnd(labelWidth);
+    return `${chalk.cyan.bold(paddedLabel)}${value}`;
+}
+
+// --- MAIN DASHBOARD FUNCTION ---
 
 module.exports = async function dashboard() {
   process.stdout.write('\x1b[?25l'); // Hide cursor
@@ -53,7 +65,7 @@ module.exports = async function dashboard() {
   const cleanup = () => {
     process.stdout.write('\x1b[?25h'); // Show cursor
     console.clear();
-    console.log(chalk.cyan('� Vici Monitor - Dashboard stopped gracefully'));
+    console.log(chalk.cyan('👋 Vici Monitor - Dashboard stopped gracefully'));
   };
   
   process.on('SIGINT', cleanup);
@@ -61,190 +73,116 @@ module.exports = async function dashboard() {
   
   let running = true;
   let frame = 0;
-  
+  const startTime = new Date();
+
   while (running) {
     console.clear();
     
-    // Professional header with logo
-    console.log(chalk.cyan(logo));
-    
     try {
-      // Get real data
+      // --- 1. DATA FETCHING ---
       const dbConnection = require('../../database/connection');
       await dbConnection.connect();
       const StatsModel = require('../../database/models/Stats');
-      const dbStats = await StatsModel.getDatabaseStats();
       const latest = await StatsModel.getLatestRecord();
       
       const data = latest ? JSON.parse(latest.raw_data) : { summary: {}, meta: {} };
       const summary = data.summary || {};
       const meta = data.meta || {};
       
-      // Main dashboard layout
-      console.log('\n');
-      
-      // System Overview Section
-      console.log(chalk.blue(box.tl + box.h.repeat(58) + box.tr));
-      console.log(chalk.blue(box.v) + chalk.white(' 🖥️  SYSTEM OVERVIEW ') + box.h.repeat(42) + chalk.blue(box.v));
-      console.log(chalk.blue(box.cross) + box.h.repeat(58) + box.cross);
-      
-      // Row 1: Server Status
-      console.log(chalk.blue(box.v) + ' 🟢 Server: ' + chalk.green('ONLINE') + 
-                 ' '.repeat(14) + 
-                 chalk.blue(box.v) + ' 📊 Port: ' + chalk.white('3001') + 
-                 ' '.repeat(15) + 
-                 chalk.blue(box.v) + ' ⏱️  Uptime: ' + chalk.white('2h 34m') + 
-                 ' '.repeat(12) + chalk.blue(box.v));
-      
-      // Row 2: Database Status
-      console.log(chalk.blue(box.v) + ' 💾 Database: ' + chalk.green('CONNECTED') + 
-                 ' '.repeat(10) + 
-                 chalk.blue(box.v) + ' 📈 Records: ' + chalk.white(dbStats.totalRecords.toLocaleString()) + 
-                 ' '.repeat(11) + 
-                 chalk.blue(box.v) + ' 💾 Size: ' + chalk.white('28 KB') + 
-                 ' '.repeat(15) + chalk.blue(box.v));
-      
-      // Row 3: Extension Status
-      const extensionStatus = latest ? chalk.green('ACTIVE') : chalk.yellow('WAITING');
-      const lastUpdate = latest ? new Date(latest.timestamp).toLocaleTimeString() : 'Never';
-      console.log(chalk.blue(box.v) + ' 📡 Extension: ' + extensionStatus + 
-                 ' '.repeat(10) + 
-                 chalk.blue(box.v) + ' 🕐 Last: ' + chalk.white(lastUpdate) + 
-                 ' '.repeat(13) + 
-                 chalk.blue(box.v) + ' 🔄 Rate: ' + chalk.white('1/4s') + 
-                 ' '.repeat(16) + chalk.blue(box.v));
-      
-      console.log(chalk.blue(box.bl + box.h.repeat(58) + box.br));
-      
-      // Call Center Metrics Section
-      console.log('\n');
-      console.log(chalk.green(box.tl + box.h.repeat(58) + box.tr));
-      console.log(chalk.green(box.v) + chalk.white(' 📞 CALL CENTER METRICS ') + box.h.repeat(38) + chalk.green(box.v));
-      console.log(chalk.green(box.cross) + box.h.repeat(58) + box.cross);
-      
-      // Active Calls with visual indicator
       const activeCalls = summary.activeCalls || 0;
-      const callBar = createProgressBar(activeCalls, 50, 25);
-      console.log(chalk.green(box.v) + ' 📞 Active Calls: ' + chalk.yellow(activeCalls.toString().padStart(3)) + 
-                 ' '.repeat(8) + callBar + ' '.repeat(5) + chalk.green(box.v));
-      
-      // Agents Status
       const agentsLoggedIn = summary.agentsLoggedIn || 0;
       const agentsInCalls = summary.agentsInCalls || 0;
-      const agentBar = createProgressBar(agentsInCalls, agentsLoggedIn || 1, 25);
-      console.log(chalk.green(box.v) + ' 👥 Agents: ' + chalk.blue(agentsLoggedIn.toString().padStart(2)) + 
-                 chalk.gray('/') + chalk.blue(agentsInCalls.toString().padStart(2)) + ' in calls' + 
-                 ' '.repeat(5) + agentBar + ' '.repeat(5) + chalk.green(box.v));
-      
-      // Queue Status
       const waitingCalls = summary.waitingCalls || 0;
-      const queueBar = createProgressBar(waitingCalls, 20, 25);
-      console.log(chalk.green(box.v) + ' ⏳ Queue: ' + chalk.yellow(waitingCalls.toString().padStart(3)) + 
-                 ' waiting' + ' '.repeat(9) + queueBar + ' '.repeat(5) + chalk.green(box.v));
-      
-      // Dial Level
       const dialLevel = meta.dialLevel || 'NORMAL';
       const dialableLeads = meta.dialableLeads || 0;
-      console.log(chalk.green(box.v) + ' 🎯 Dial Level: ' + chalk.cyan(dialLevel.padEnd(8)) + 
-                 ' '.repeat(8) + '📋 Leads: ' + chalk.white(dialableLeads.toLocaleString()) + 
-                 ' '.repeat(10) + chalk.green(box.v));
+      const extensionStatus = latest ? chalk.green('ACTIVE') : chalk.yellow('WAITING');
       
-      console.log(chalk.green(box.bl + box.h.repeat(58) + box.br));
-      
-      // Performance Section
-      console.log('\n');
-      console.log(chalk.yellow(box.tl + box.h.repeat(58) + box.tr));
-      console.log(chalk.yellow(box.v) + chalk.white(' ⚡ PERFORMANCE METRICS ') + box.h.repeat(36) + chalk.yellow(box.v));
-      console.log(chalk.yellow(box.cross) + box.h.repeat(58) + box.cross);
-      
-      // CPU Usage (simulated)
       const cpuUsage = 25 + Math.sin(frame * 0.1) * 10;
-      const cpuBar = createProgressBar(cpuUsage, 100, 30);
-      console.log(chalk.yellow(box.v) + ' 🖥️  CPU: ' + chalk.yellow(cpuUsage.toFixed(1).padStart(5) + '%') + 
-                 ' '.repeat(8) + cpuBar + ' '.repeat(3) + chalk.yellow(box.v));
-      
-      // Memory Usage
       const memoryUsage = 45 + Math.cos(frame * 0.08) * 15;
-      const memBar = createProgressBar(memoryUsage, 100, 30);
-      console.log(chalk.yellow(box.v) + ' 💾 Memory: ' + chalk.yellow(memoryUsage.toFixed(1).padStart(5) + '%') + 
-                 ' '.repeat(6) + memBar + ' '.repeat(3) + chalk.yellow(box.v));
-      
-      // Network I/O
       const networkIO = 15 + Math.sin(frame * 0.12) * 8;
-      const netBar = createProgressBar(networkIO, 100, 30);
-      console.log(chalk.yellow(box.v) + ' 🌐 Network: ' + chalk.yellow(networkIO.toFixed(1).padStart(5) + '%') + 
-                 ' '.repeat(6) + netBar + ' '.repeat(3) + chalk.yellow(box.v));
       
-      console.log(chalk.yellow(box.bl + box.h.repeat(58) + box.br));
-      
-      // Live Data Stream Section
-      console.log('\n');
-      console.log(chalk.magenta(box.tl + box.h.repeat(58) + box.tr));
-      console.log(chalk.magenta(box.v) + chalk.white(' 📡 LIVE DATA STREAM ') + box.h.repeat(40) + chalk.magenta(box.v));
-      console.log(chalk.magenta(box.cross) + box.h.repeat(58) + box.cross);
-      
-      // Show recent data entries
-      const streamData = [];
-      const currentTime = new Date().toLocaleTimeString();
-      
-      if (latest) {
-        streamData.push(
-          `${chalk.gray(currentTime)} | ${chalk.green('📊')} Data: ${chalk.white(`Calls:${activeCalls} Agents:${agentsLoggedIn} Queue:${waitingCalls}`)}`,
-          `${chalk.gray(currentTime)} | ${chalk.blue('🔄')} Sync: ${chalk.green('Normal')} | ${chalk.cyan('⚡')} Performance: ${chalk.green('Good')}`,
-          `${chalk.gray(currentTime)} | ${chalk.yellow('🎯')} Dial: ${chalk.white(dialLevel)} | ${chalk.magenta('📋')} Leads: ${chalk.white(dialableLeads.toLocaleString())}`
-        );
-      } else {
-        streamData.push(
-          `${chalk.gray(currentTime)} | ${chalk.yellow('⚠️')} No extension data received`,
-          `${chalk.gray(currentTime)} | ${chalk.blue('ℹ️')} Waiting for extension to connect...`,
-          `${chalk.gray(currentTime)} | ${chalk.cyan('🔄')} Server ready and listening`
-        );
+      function formatUptime(ms) {
+          let seconds = Math.floor(ms / 1000);
+          let minutes = Math.floor(seconds / 60);
+          let hours = Math.floor(minutes / 60);
+          seconds = seconds % 60;
+          minutes = minutes % 60;
+          return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
       }
+      const uptime = formatUptime(new Date() - startTime);
+
+      // --- 2. BUILD UI COMPONENTS ---
       
-      streamData.forEach((line, index) => {
-        const paddedLine = line.padEnd(114, ' ');
-        console.log(chalk.magenta(box.v) + ' ' + paddedLine + chalk.magenta(box.v));
-      });
-      
-      console.log(chalk.magenta(box.bl + box.h.repeat(58) + box.br));
-      
-      // Status Bar
+      const rightColumnContent = [
+          chalk.white.bold.underline('SYSTEM STATUS'),
+          createInfoLine('  Server:', chalk.green('ONLINE')),
+          createInfoLine('  Database:', chalk.green('CONNECTED')),
+          createInfoLine('  Extension:', extensionStatus),
+          createInfoLine('  Uptime:', chalk.white(uptime)),
+          ' ', 
+          chalk.white.bold.underline('CALL CENTER'),
+          createInfoLine('  Active Calls:', chalk.yellow(activeCalls.toString())),
+          createInfoLine('  Agents Logged In:', chalk.white(agentsLoggedIn.toString())),
+          createInfoLine('  Agents In Calls:', chalk.white(agentsInCalls.toString())),
+          createInfoLine('  Waiting Calls:', chalk.yellow(waitingCalls.toString())),
+          createInfoLine('  Dial Level:', chalk.cyan(dialLevel)),
+          ' ',
+          chalk.white.bold.underline('PERFORMANCE'),
+          createInfoLine('  CPU:', createProgressBar(cpuUsage, 100, 15)),
+          createInfoLine('  Memory:', createProgressBar(memoryUsage, 100, 15)),
+          createInfoLine('  Network:', createProgressBar(networkIO, 100, 15)),
+      ];
+
+      // --- 3. RENDER THE DASHBOARD ---
+
+      // Header
+      console.log(chalk.cyan(logo));
       console.log('\n');
-      console.log(chalk.gray('┌─ System Status ─┐') + 
-                 chalk.green('┌─ Health ──────┐') + 
-                 chalk.blue('┌─ Data Flow ────┐') + 
-                 chalk.yellow('┌─ Performance ──┐') + 
-                 chalk.red('┌─ Actions ──────┐'));
       
-      console.log(chalk.gray('│ 🟢 Healthy     │') + 
-                 chalk.green('│ 🟢 Optimal    │') + 
-                 chalk.blue('│ 📊 Active     │') + 
-                 chalk.yellow('│ ⚡ Excellent  │') + 
-                 chalk.red('│ ESC: Exit     │'));
+      // Main Content
+      const twoColumnLayout = mergeColumns(newAscii, rightColumnContent);
+      console.log(twoColumnLayout);
       
-      console.log(chalk.gray('└────────────────┘') + 
-                 chalk.green('└───────────────┘') + 
-                 chalk.blue('└───────────────┘') + 
-                 chalk.yellow('└───────────────┘') + 
-                 chalk.red('└───────────────┘'));
+      // Live Stream
+      const streamHeader = chalk.magenta('╔' + '═'.repeat(100) + '╗');
+      const streamTitle = chalk.magenta('║') + chalk.white(' 📡 LIVE DATA STREAM ') + ' '.repeat(80) + chalk.magenta('║');
+      const streamFooter = chalk.magenta('╚' + '═'.repeat(100) + '╝');
+      
+      console.log(streamHeader);
+      console.log(streamTitle);
+      
+      const currentTime = new Date().toLocaleTimeString();
+      if (latest) {
+          console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.green('📊')} Data: ${chalk.white(`Calls:${activeCalls} Agents:${agentsLoggedIn} Queue:${waitingCalls}`)}`.padEnd(99) + chalk.magenta('║'));
+          console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.yellow('🎯')} Dial: ${chalk.white(dialLevel)} | ${chalk.magenta('📋')} Leads: ${chalk.white(dialableLeads.toLocaleString())}`.padEnd(99) + chalk.magenta('║'));
+      } else {
+          console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.yellow('⚠️')} No extension data received`.padEnd(99) + chalk.magenta('║'));
+          console.log(chalk.magenta('║') + ` ${chalk.gray(currentTime)} | ${chalk.blue('ℹ️')} Waiting for extension to connect...`.padEnd(99) + chalk.magenta('║'));
+      }
+      console.log(streamFooter);
+      console.log('\n');
+
+      // Footer
+      const footer = chalk.gray('  [ Health: ') + chalk.green('Optimal') + chalk.gray(' | Data Flow: ') + chalk.blue('Active') + chalk.gray(' | Actions: ') + chalk.red('(ESC) Exit') + chalk.gray(' ]');
+      console.log(footer);
       
       await dbConnection.close();
       
     } catch (error) {
-      console.log(chalk.red(`Error loading data: ${error.message}`));
+      console.clear();
+      console.log(chalk.red.bold('An error occurred while rendering the dashboard:'));
+      console.log(chalk.gray(error.stack));
+      process.stdout.write('\x1b[?25h'); // Ensure cursor is visible on error
     }
     
-    // Animated frame counter
     frame++;
     
-    // Wait for refresh with keyboard handling
     await new Promise(resolve => {
       const timeout = setTimeout(resolve, 2000);
-      
       process.stdin.setRawMode(true);
       process.stdin.resume();
       process.stdin.once('data', (key) => {
-        if (key[0] === 3) { // Ctrl+C
+        if (key[0] === 3 || key.toString() === 'q') { // Ctrl+C or 'q'
           running = false;
         }
         clearTimeout(timeout);
