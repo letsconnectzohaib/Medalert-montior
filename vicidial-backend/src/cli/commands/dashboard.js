@@ -6,6 +6,9 @@ const StatsModel = require('../../database/models/Stats');
 
 // --- HELPER FUNCTIONS ---
 
+// Strips ANSI color codes from a string to get its actual length
+const stripAnsi = (str) => str.replace(/[\u001b\u009b][[()#;?]*.{0,2}[A-Za-z\u0002\u0003]/g, '');
+
 function createProgressBar(value, max, width = 15) {
   const percentage = Math.min(100, (value / max) * 100);
   const filled = Math.round((width * percentage) / 100);
@@ -27,7 +30,14 @@ function createProgressBar(value, max, width = 15) {
 
 module.exports = async function dashboard() {
   process.stdout.write('\x1b[?25l'); // Hide cursor
-  await dbConnection.connect();
+  
+  try {
+    await dbConnection.connect();
+  } catch (e) {
+      console.error(chalk.red('Could not connect to the database.'));
+      console.error(e);
+      process.exit(1);
+  }
 
   const cleanup = async () => {
     await dbConnection.close();
@@ -51,44 +61,37 @@ module.exports = async function dashboard() {
       const { activeCalls = 0, agentsLoggedIn = 0, agentsInCalls = 0, waitingCalls = 0 } = data.summary || {};
       const { dialLevel = 'N/A', dialableLeads = 0 } = data.meta || {};
       const extensionStatus = latest ? chalk.green('ACTIVE') : chalk.yellow('WAITING');
-      
       const cpuUsage = 25 + Math.sin(frame * 0.1) * 10;
       const memoryUsage = 45 + Math.cos(frame * 0.08) * 15;
-      const uptime = ((ms) => {
-          let s = Math.floor(ms / 1000);
-          let m = Math.floor(s / 60);
-          let h = Math.floor(m / 60);
-          return `${String(h).padStart(2, '0')}h ${String(m % 60).padStart(2, '0')}m ${String(s % 60).padStart(2, '0')}s`;
-      })(new Date() - startTime);
+      const uptime = ((ms) => `${String(Math.floor(ms / 3600000)).padStart(2, '0')}h ${String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0')}m ${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}s`)(new Date() - startTime);
 
-      // --- 2. BUILD UI COMPONENTS ---
+      // --- 2. BUILD UI COMPONENTS (NEOFETCH-STYLE) ---
       const artLines = newAscii.split('\n');
-      const artWidth = 50;
+      const artWidth = 55;
       const padding = ' '.repeat(4);
 
       const dataRows = [
-        { label: chalk.cyan.bold('System Status') },
+        { label: chalk.cyan.bold('System Status'), value: null },
         { label: '  Server', value: chalk.green('ONLINE') },
         { label: '  Database', value: chalk.green('CONNECTED') },
         { label: '  Extension', value: extensionStatus },
         { label: '  Uptime', value: chalk.white(uptime) },
-        { label: '' }, // Spacer
-        { label: chalk.cyan.bold('Call Center') },
+        { label: '', value: null }, // Spacer
+        { label: chalk.cyan.bold('Call Center'), value: null },
         { label: '  Active Calls', value: chalk.yellow(activeCalls) },
         { label: '  Agents Logged In', value: chalk.white(agentsLoggedIn) },
         { label: '  Agents In Calls', value: chalk.white(agentsInCalls) },
         { label: '  Calls Waiting', value: chalk.yellow(waitingCalls) },
         { label: '  Dial Level', value: chalk.cyan(dialLevel) },
-        { label: '' }, // Spacer
-        { label: chalk.cyan.bold('Performance') },
+        { label: '', value: null }, // Spacer
+        { label: chalk.cyan.bold('Performance'), value: null },
         { label: '  CPU', value: createProgressBar(cpuUsage, 100) },
         { label: '  Memory', value: createProgressBar(memoryUsage, 100) },
       ];
       
-      const maxLabelWidth = Math.max(...dataRows.map(r => r.label.length));
+      const maxLabelWidth = Math.max(...dataRows.filter(r => r.value !== null).map(r => stripAnsi(r.label).length));
 
       // --- 3. RENDER THE DASHBOARD ---
-      console.clear();
       const output = [];
       const numLines = Math.max(artLines.length, dataRows.length, 20);
 
@@ -99,14 +102,22 @@ module.exports = async function dashboard() {
         let dataLine = '';
         if (dataRows[i]) {
           const { label, value } = dataRows[i];
-          const paddedLabel = label.padEnd(maxLabelWidth);
-          dataLine = value !== undefined ? `${paddedLabel}  ${value}` : label;
+          if (value !== null) {
+            const strippedLabel = stripAnsi(label);
+            const paddedLabel = label + ' '.repeat(maxLabelWidth - strippedLabel.length);
+            dataLine = `${paddedLabel}  ${value}`;
+          } else {
+            dataLine = label;
+          }
         }
         output.push(paddedArtLine + padding + dataLine);
       }
+      
+      // --- 4. CONSTRUCT FINAL FRAME AND RENDER ---
+      console.clear();
       console.log(output.join('\n'));
 
-      // --- 4. FOOTER ---
+      // --- 5. FOOTER ---
       const currentTime = new Date().toLocaleTimeString();
       let statusLine = chalk.gray(`[ ${chalk.white(currentTime)} | Health: ${chalk.green('Optimal')} | Data: ${latest ? chalk.blue('Active') : chalk.yellow('Waiting')} | `);
       statusLine += `Calls: ${chalk.yellow(activeCalls)} | Agents: ${chalk.white(agentsLoggedIn)} | Queue: ${chalk.yellow(waitingCalls)} | Leads: ${chalk.white(dialableLeads.toLocaleString())} `;
@@ -115,15 +126,16 @@ module.exports = async function dashboard() {
       
     } catch (error) {
       console.clear();
-      console.log(chalk.red.bold('An error occurred:'));
+      console.log(chalk.red.bold('A critical error occurred:'));
       console.log(chalk.gray(error.stack));
-      await cleanup();
+      await cleanup(); // Exit on loop error
     } finally {
-        frame++;
+      frame++;
     }
   };
 
-  const interval = setInterval(mainLoop, 2000);
+  // --- RUN LOOP ---
+  const interval = setInterval(mainLoop, 1500);
 
   process.stdin.setRawMode(true);
   process.stdin.resume();
@@ -135,5 +147,5 @@ module.exports = async function dashboard() {
     }
   });
 
-  await mainLoop();
+  await mainLoop(); // Run once immediately without waiting for interval
 };
