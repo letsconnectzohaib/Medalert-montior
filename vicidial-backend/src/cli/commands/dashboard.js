@@ -6,9 +6,6 @@ const StatsModel = require('../../database/models/Stats');
 
 // --- HELPER FUNCTIONS ---
 
-// Strips ANSI color codes from a string to get its actual length
-const stripAnsi = (str) => str.replace(/[\u001b\u009b][[()#;?]*.{0,2}[A-Za-z\u0002\u0003]/g, '');
-
 function createProgressBar(value, max, width = 15) {
   const percentage = Math.min(100, (value / max) * 100);
   const filled = Math.round((width * percentage) / 100);
@@ -30,20 +27,22 @@ function createProgressBar(value, max, width = 15) {
 
 module.exports = async function dashboard() {
   process.stdout.write('\x1b[?25l'); // Hide cursor
-  
+
   try {
     await dbConnection.connect();
   } catch (e) {
-      console.error(chalk.red('Could not connect to the database.'));
-      console.error(e);
-      process.exit(1);
+    console.error(chalk.red('Fatal Error: Could not connect to the database.'));
+    console.error(e);
+    process.exit(1);
   }
 
   const cleanup = async () => {
+    // Node has a bug where it can hang on db.close() if there are active stdin listeners
+    process.stdin.pause();
     await dbConnection.close();
     console.clear();
     process.stdout.write('\x1b[?25h'); // Show cursor
-    console.log(chalk.cyan('Vici Monitor closed.'));
+    console.log(chalk.cyan.bold('Vici Monitor Closed.'));
     process.exit(0);
   };
 
@@ -65,33 +64,33 @@ module.exports = async function dashboard() {
       const memoryUsage = 45 + Math.cos(frame * 0.08) * 15;
       const uptime = ((ms) => `${String(Math.floor(ms / 3600000)).padStart(2, '0')}h ${String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0')}m ${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}s`)(new Date() - startTime);
 
-      // --- 2. BUILD UI COMPONENTS (NEOFETCH-STYLE) ---
+      // --- 2. DEFINE UI STRUCTURE ---
       const artLines = newAscii.split('\n');
       const artWidth = 55;
-      const padding = ' '.repeat(4);
+      const sidePadding = ' '.repeat(4);
 
       const dataRows = [
-        { label: chalk.cyan.bold('System Status'), value: null },
+        { header: chalk.white.bold.underline('System Status') },
         { label: '  Server', value: chalk.green('ONLINE') },
         { label: '  Database', value: chalk.green('CONNECTED') },
         { label: '  Extension', value: extensionStatus },
         { label: '  Uptime', value: chalk.white(uptime) },
-        { label: '', value: null }, // Spacer
-        { label: chalk.cyan.bold('Call Center'), value: null },
-        { label: '  Active Calls', value: chalk.yellow(activeCalls) },
-        { label: '  Agents Logged In', value: chalk.white(agentsLoggedIn) },
-        { label: '  Agents In Calls', value: chalk.white(agentsInCalls) },
-        { label: '  Calls Waiting', value: chalk.yellow(waitingCalls) },
+        { spacer: true },
+        { header: chalk.white.bold.underline('Call Center') },
+        { label: '  Active Calls', value: chalk.yellow(activeCalls.toString()) },
+        { label: '  Agents Logged In', value: chalk.white(agentsLoggedIn.toString()) },
+        { label: '  Agents In Calls', value: chalk.white(agentsInCalls.toString()) },
+        { label: '  Calls Waiting', value: chalk.yellow(waitingCalls.toString()) },
         { label: '  Dial Level', value: chalk.cyan(dialLevel) },
-        { label: '', value: null }, // Spacer
-        { label: chalk.cyan.bold('Performance'), value: null },
+        { spacer: true },
+        { header: chalk.white.bold.underline('Performance') },
         { label: '  CPU', value: createProgressBar(cpuUsage, 100) },
         { label: '  Memory', value: createProgressBar(memoryUsage, 100) },
       ];
       
-      const maxLabelWidth = Math.max(...dataRows.filter(r => r.value !== null).map(r => stripAnsi(r.label).length));
+      const maxLabelWidth = Math.max(...dataRows.filter(r => r.label).map(r => r.label.length));
 
-      // --- 3. RENDER THE DASHBOARD ---
+      // --- 3. RENDER FRAME (THE CORRECT WAY) ---
       const output = [];
       const numLines = Math.max(artLines.length, dataRows.length, 20);
 
@@ -100,24 +99,25 @@ module.exports = async function dashboard() {
         const paddedArtLine = artLine.padEnd(artWidth);
         
         let dataLine = '';
-        if (dataRows[i]) {
-          const { label, value } = dataRows[i];
-          if (value !== null) {
-            const strippedLabel = stripAnsi(label);
-            const paddedLabel = label + ' '.repeat(maxLabelWidth - strippedLabel.length);
-            dataLine = `${paddedLabel}  ${value}`;
-          } else {
-            dataLine = label;
+        const row = dataRows[i];
+        if (row) {
+          if (row.header) {
+            dataLine = row.header;
+          } else if (row.spacer) {
+            dataLine = '';
+          } else if (row.label) {
+            const coloredLabel = chalk.cyan(row.label);
+            const padding = ' '.repeat(maxLabelWidth - row.label.length);
+            dataLine = `${coloredLabel}${padding}  ${row.value}`;
           }
         }
-        output.push(paddedArtLine + padding + dataLine);
+        output.push(paddedArtLine + sidePadding + dataLine);
       }
       
-      // --- 4. CONSTRUCT FINAL FRAME AND RENDER ---
       console.clear();
       console.log(output.join('\n'));
 
-      // --- 5. FOOTER ---
+      // --- 4. FOOTER ---
       const currentTime = new Date().toLocaleTimeString();
       let statusLine = chalk.gray(`[ ${chalk.white(currentTime)} | Health: ${chalk.green('Optimal')} | Data: ${latest ? chalk.blue('Active') : chalk.yellow('Waiting')} | `);
       statusLine += `Calls: ${chalk.yellow(activeCalls)} | Agents: ${chalk.white(agentsLoggedIn)} | Queue: ${chalk.yellow(waitingCalls)} | Leads: ${chalk.white(dialableLeads.toLocaleString())} `;
@@ -128,7 +128,7 @@ module.exports = async function dashboard() {
       console.clear();
       console.log(chalk.red.bold('A critical error occurred:'));
       console.log(chalk.gray(error.stack));
-      await cleanup(); // Exit on loop error
+      await cleanup();
     } finally {
       frame++;
     }
@@ -147,5 +147,5 @@ module.exports = async function dashboard() {
     }
   });
 
-  await mainLoop(); // Run once immediately without waiting for interval
+  await mainLoop();
 };
