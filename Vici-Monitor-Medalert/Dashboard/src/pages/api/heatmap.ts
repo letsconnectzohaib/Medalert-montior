@@ -4,14 +4,23 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 // This API route acts as a proxy for our heatmap data.
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { query } = req;
-  const { endDate } = query;
+  const { endDate, campaign, group } = query;
 
   if (!endDate) {
     return res.status(400).json({ success: false, error: 'endDate is required' });
   }
 
   try {
-    const apiUrl = `${process.env.NEXT_PUBLIC_ANALYTICS_API_URL}/api/summary/heatmap-data/${endDate}`;
+    const queryParams = new URLSearchParams();
+    if (campaign && typeof campaign === 'string') {
+        queryParams.append('campaign', campaign);
+    }
+    if (group && typeof group === 'string') {
+        queryParams.append('group', group);
+    }
+    
+    const queryString = queryParams.toString();
+    const apiUrl = `${process.env.NEXT_PUBLIC_ANALYTICS_API_URL}/api/summary/heatmap-data/${endDate}${queryString ? `?${queryString}` : ''}`;
     
     const backendRes = await fetch(apiUrl);
 

@@ -1,20 +1,18 @@
 
 import { useState, useEffect } from 'react';
 import { Container, Grid, Paper, Typography, CircularProgress, Select, MenuItem, InputLabel, FormControl } from '@mui/material';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-// Fetches analytical breakdown data
-async function fetchAnalyticalBreakdown(shiftDate, filters) {
-    const { campaign, group } = filters;
-    const queryParams = new URLSearchParams({ campaign, group });
-    const response = await fetch(`/api/analytical?shiftDate=${shiftDate}&${queryParams.toString()}`)
-    if(!response.ok) {
-        throw new Error('Failed to fetch analytical breakdown');
-    }
-    return response.json();
+// Assume your API functions are updated to accept filters
+async function fetchShiftSummary(shiftDate, filters) {
+  const { campaign, group } = filters;
+  const queryParams = new URLSearchParams({ campaign, group });
+  const response = await fetch(`/api/summary?shiftDate=${shiftDate}&${queryParams}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch shift summary');
+  }
+  return response.json();
 }
 
-// Fetches available filter options
 async function fetchFilters(type) {
     const response = await fetch(`/api/filters?type=${type}`);
     if(!response.ok) {
@@ -23,8 +21,9 @@ async function fetchFilters(type) {
     return response.json();
 }
 
-export default function CallAnalytics() {
-  const [data, setData] = useState(null);
+
+export default function ShiftSummary() {
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
@@ -39,8 +38,8 @@ export default function CallAnalytics() {
                 fetchFilters('campaigns'),
                 fetchFilters('groups'),
             ]);
-            setCampaigns(campaignData.data || []);
-            setGroups(groupData.data || []);
+            setCampaigns(campaignData.data);
+            setGroups(groupData.data);
         } catch (err) {
             console.error("Error loading filters:", err);
         }
@@ -50,9 +49,9 @@ export default function CallAnalytics() {
 
   useEffect(() => {
     setLoading(true);
-    fetchAnalyticalBreakdown(selectedDate, filters)
+    fetchShiftSummary(selectedDate, filters)
       .then(data => {
-        setData(data.data);
+        setSummary(data.data);
         setLoading(false);
       })
       .catch(err => {
@@ -68,26 +67,36 @@ export default function CallAnalytics() {
 
   if (loading) return <CircularProgress />;
   if (error) return <Typography color="error">{error}</Typography>;
-  if (!data) return <Typography>No data available.</Typography>;
+  if (!summary) return <Typography>No data available.</Typography>;
 
   return (
     <Container maxWidth="lg">
-      <Typography variant="h4" gutterBottom>Call Analytics for {selectedDate}</Typography>
+      <Typography variant="h4" gutterBottom>Agent Shift Summary for {selectedDate}</Typography>
       
       <Grid container spacing={2} style={{ marginBottom: '20px' }}>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth>
                     <InputLabel>Campaign</InputLabel>
-                    <Select name="campaign" value={filters.campaign} onChange={handleFilterChange} label="Campaign">
+                    <Select
+                        name="campaign"
+                        value={filters.campaign}
+                        onChange={handleFilterChange}
+                        label="Campaign"
+                    >
                         <MenuItem value=""><em>All Campaigns</em></MenuItem>
                         {campaigns.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                     </Select>
                 </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth>
                     <InputLabel>Group</InputLabel>
-                    <Select name="group" value={filters.group} onChange={handleFilterChange} label="Group">
+                    <Select
+                        name="group"
+                        value={filters.group}
+                        onChange={handleFilterChange}
+                        label="Group"
+                    >
                         <MenuItem value=""><em>All Groups</em></MenuItem>
                         {groups.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
                     </Select>
@@ -95,24 +104,8 @@ export default function CallAnalytics() {
             </Grid>
         </Grid>
 
-        <Grid container spacing={3}>
-            <Grid item xs={12}>
-                <Typography variant="h6">Hourly Breakdown</Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={data.hourlyBreakdown}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="hour" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="#d1c4e9" fill="#d1c4e9" name="In Call" />
-                        <Bar dataKey="#a5d6a7" fill="#a5d6a7" name="Ready" />
-                        <Bar dataKey="#ef9a9a" fill="#ef9a9a" name="Paused" />
-                    </BarChart>
-                </ResponsiveContainer>
-            </Grid>
-            {/* Add more charts for other data points like previousDayBreakdown, weeklyAverage, etc. */}
-        </Grid>
+      {/* Render your summary data here, using the 'summary' state */}
+      <pre>{JSON.stringify(summary, null, 2)}</pre>
 
     </Container>
   );

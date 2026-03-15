@@ -1,153 +1,139 @@
-import { useMemo } from "react";
-import { TrendingUp, TrendingDown, ArrowRight, Calendar } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
-const CYAN = "hsl(187, 80%, 48%)";
-const TEAL = "hsl(170, 60%, 45%)";
-const AMBER = "hsl(38, 92%, 50%)";
-const RED = "hsl(0, 72%, 50%)";
-const SLATE = "hsl(215, 12%, 50%)";
+import { useState, useEffect } from 'react';
+import { Container, Grid, Paper, Typography, CircularProgress, Select, MenuItem, InputLabel, FormControl, TextField } from '@mui/material';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload) return null;
-  return (
-    <div className="glass-panel p-3 text-xs font-mono">
-      <p className="text-muted-foreground mb-1">{label}</p>
-      {payload.map((entry: any, i: number) => (
-        <p key={i} style={{ color: entry.color }} className="flex justify-between gap-4">
-          <span>{entry.name}:</span>
-          <span className="font-bold">{entry.value}</span>
-        </p>
-      ))}
-    </div>
-  );
-};
+async function fetchTrendsData(type, endDate, filters) {
+    const { campaign, group } = filters;
+    const queryParams = new URLSearchParams({ type, endDate, campaign, group });
+    const response = await fetch(`/api/trends?${queryParams.toString()}`);
+    if(!response.ok) {
+        throw new Error(`Failed to fetch ${type} trends`);
+    }
+    return response.json();
+}
+
+async function fetchFilters(type) {
+    const response = await fetch(`/api/filters?type=${type}`);
+    if(!response.ok) {
+        throw new Error (`Failed to fetch ${type}`);
+    }
+    return response.json();
+}
 
 export default function Trends() {
-  const weeklyData = useMemo(() =>
-    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => ({
-      day,
-      calls: Math.floor(Math.random() * 200 + 250),
-      sla: Math.floor(Math.random() * 15 + 78),
-      aht: Math.floor(Math.random() * 120 + 240),
-      abandoned: Math.floor(Math.random() * 15 + 5),
-    })),
-  []);
+  const [historicalData, setHistoricalData] = useState([]);
+  const [heatmapData, setHeatmapData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [campaigns, setCampaigns] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [filters, setFilters] = useState({ campaign: '', group: '' });
 
-  const shiftComparison = useMemo(() =>
-    Array.from({ length: 7 }, (_, i) => ({
-      shift: `Shift ${i + 1}`,
-      avgCalls: Math.floor(Math.random() * 100 + 300),
-      peakWaiting: Math.floor(Math.random() * 8 + 2),
-      avgAgents: Math.floor(Math.random() * 6 + 18),
-    })),
-  []);
+  useEffect(() => {
+    const loadFilters = async () => {
+        try {
+            const [campaignData, groupData] = await Promise.all([
+                fetchFilters('campaigns'),
+                fetchFilters('groups'),
+            ]);
+            setCampaigns(campaignData.data || []);
+            setGroups(groupData.data || []);
+        } catch (err) {
+            console.error("Error loading filters:", err);
+        }
+    };
+    loadFilters();
+  }, []);
 
-  const trendCards = [
-    { label: "Calls vs Last Week", value: "+12%", trend: "up" as const, detail: "432 → 484" },
-    { label: "SLA vs Last Week", value: "-3%", trend: "down" as const, detail: "87% → 84%" },
-    { label: "AHT Trend", value: "-8s", trend: "up" as const, detail: "4:23 → 4:15" },
-    { label: "Abandon Rate", value: "+0.5%", trend: "down" as const, detail: "3.2% → 3.7%" },
-  ];
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+        fetchTrendsData('historical', endDate, filters),
+        fetchTrendsData('heatmap', endDate, filters)
+    ])
+    .then(([historical, heatmap]) => {
+        // Process historical data for charts
+        const processed = historical.data.reduce((acc, curr) => {
+            const date = curr.shift_date;
+            if (!acc[date]) {
+                acc[date] = { shift_date: date, total_calls: 0, ready: 0, paused: 0 };
+            }
+            acc[date].total_calls += curr.status_count;
+            if (curr.vicidial_state_color === '#a5d6a7') acc[date].ready = curr.status_count;
+            if (curr.vicidial_state_color === '#ef9a9a') acc[date].paused = curr.status_count;
+            return acc;
+        }, {});
+        setHistoricalData(Object.values(processed));
+        setHeatmapData(heatmap.data);
+        setLoading(false);
+    })
+    .catch(err => {
+        setError(err.message);
+        setLoading(false);
+    });
+  }, [endDate, filters]);
+
+  const handleFilterChange = (event) => {
+    const { name, value } = event.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  if (loading) return <CircularProgress />;
+  if (error) return <Typography color="error">{error}</Typography>;
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 py-6 space-y-5">
-      <div>
-        <h1 className="text-sm font-bold tracking-tight flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-primary" />
-          Performance Trends
-        </h1>
-        <p className="text-xs text-muted-foreground font-mono">
-          Historical analysis and week-over-week comparisons
-        </p>
-      </div>
+    <Container maxWidth="lg">
+      <Typography variant="h4" gutterBottom>Performance Trends up to {endDate}</Typography>
 
-      {/* Trend Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {trendCards.map((card, i) => (
-          <div key={i} className="glass-panel p-4">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{card.label}</span>
-            <div className="flex items-center gap-2 mt-2">
-              {card.trend === "up" ? (
-                <TrendingUp className="w-4 h-4 text-success" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-destructive" />
-              )}
-              <span className={`font-mono text-xl font-bold ${card.trend === "up" ? "text-success" : "text-destructive"}`}>
-                {card.value}
-              </span>
-            </div>
-            <span className="text-[10px] text-muted-foreground font-mono">{card.detail}</span>
-          </div>
-        ))}
-      </div>
+      <Grid container spacing={2} style={{ marginBottom: '20px' }}>
+        <Grid item xs={12} sm={4}>
+          <TextField
+            label="End Date"
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+            <FormControl fullWidth>
+                <InputLabel>Campaign</InputLabel>
+                <Select name="campaign" value={filters.campaign} onChange={handleFilterChange} label="Campaign">
+                    <MenuItem value=""><em>All Campaigns</em></MenuItem>
+                    {campaigns.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                </Select>
+            </FormControl>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+            <FormControl fullWidth>
+                <InputLabel>Group</InputLabel>
+                <Select name="group" value={filters.group} onChange={handleFilterChange} label="Group">
+                    <MenuItem value=""><em>All Groups</em></MenuItem>
+                    {groups.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+                </Select>
+            </FormControl>
+        </Grid>
+      </Grid>
 
-      {/* Weekly Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="glass-panel p-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Weekly Call Volume</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 14%, 18%)" />
-                <XAxis dataKey="day" tick={{ fill: SLATE, fontSize: 11, fontFamily: "JetBrains Mono" }} stroke="transparent" />
-                <YAxis tick={{ fill: SLATE, fontSize: 11, fontFamily: "JetBrains Mono" }} stroke="transparent" />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="calls" fill={CYAN} name="Total Calls" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="abandoned" fill={RED} name="Abandoned" radius={[3, 3, 0, 0]} />
-              </BarChart>
+      <Grid container spacing={4}>
+        <Grid item xs={12}>
+            <Typography variant="h6">Historical Call Volume (30 days)</Typography>
+            <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={historicalData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="shift_date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="total_calls" fill="#8884d8" name="Total Calls" />
+                </BarChart>
             </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="glass-panel p-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Weekly SLA Trend</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 14%, 18%)" />
-                <XAxis dataKey="day" tick={{ fill: SLATE, fontSize: 11, fontFamily: "JetBrains Mono" }} stroke="transparent" />
-                <YAxis domain={[60, 100]} tick={{ fill: SLATE, fontSize: 11, fontFamily: "JetBrains Mono" }} stroke="transparent" />
-                <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="sla" stroke={TEAL} strokeWidth={2.5} dot={{ fill: TEAL, r: 4 }} name="SLA %" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Shift Comparison Table */}
-      <div className="glass-panel overflow-hidden">
-        <div className="p-4 border-b border-border">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Recent Shift Comparison</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Shift</th>
-                <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Avg Calls</th>
-                <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Peak Queue</th>
-                <th className="text-left py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase">Avg Agents</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shiftComparison.map((row, i) => (
-                <tr key={i} className="border-b border-border/30 hover:bg-secondary/30">
-                  <td className="py-2 px-4 font-mono text-xs font-medium">{row.shift}</td>
-                  <td className="py-2 px-4 font-mono text-xs text-primary font-bold">{row.avgCalls}</td>
-                  <td className="py-2 px-4">
-                    <span className={`font-mono text-xs font-bold ${row.peakWaiting >= 5 ? "text-warning" : "text-foreground"}`}>
-                      {row.peakWaiting}
-                    </span>
-                  </td>
-                  <td className="py-2 px-4 font-mono text-xs">{row.avgAgents}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+        </Grid>
+        {/* Heatmap can be implemented here using heatmapData */}
+      </Grid>
+    </Container>
   );
 }

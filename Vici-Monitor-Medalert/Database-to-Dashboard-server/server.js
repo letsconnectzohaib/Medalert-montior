@@ -2,14 +2,16 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const { initializeDb } = require('./database'); // Import the new database module
 const agentRoutes = require('./routes/agentRoutes');
-const summaryRoutes = require('./routes/summaryRoutes'); // Import the new summary routes
+const summaryRoutes = require('./routes/summary'); 
+const analyticalRoutes = require('./routes/analytical');
+const trendRoutes = require('./routes/trends');
+const filterRoutes = require('./routes/filters');
 
 const app = express();
-const PORT = 3001; // Running on a different port than the extension server
+const PORT = 3001;
 
-// The path to the database file created by the other server.
 const DB_FILE = path.join(__dirname, '../Extension-to-db-server/vicidial_stats.db');
 
 // --- Middleware ---
@@ -17,16 +19,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- Database Connection ---
-// Connecting in read-only mode for safety, as this server's job is to read.
-const db = new sqlite3.Database(DB_FILE, sqlite3.OPEN_READONLY, (err) => {
-  if (err) {
-    console.error('[Dashboard Server] Error opening database:', err.message);
-    console.error('Please ensure the Extension-to-db-server has run at least once to create the database file.');
-    process.exit(1);
-  } else {
-    console.log('[Dashboard Server] Successfully connected to the Vicidial stats database in read-only mode.');
-  }
-});
+const db = initializeDb(DB_FILE);
 
 // Pass the database connection to the routes
 app.use((req, res, next) => {
@@ -40,7 +33,10 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/agents', agentRoutes);
-app.use('/api/summary', summaryRoutes); // Use the new summary routes
+app.use('/api/summary', summaryRoutes);
+app.use('/api/analytical', analyticalRoutes);
+app.use('/api/trends', trendRoutes);
+app.use('/api/filters', filterRoutes);
 
 // --- Server Start ---
 app.listen(PORT, () => {

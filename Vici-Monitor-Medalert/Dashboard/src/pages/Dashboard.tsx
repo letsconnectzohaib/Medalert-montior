@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, Link } from "react-router-dom";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWaitingCallAlert } from "@/hooks/useWaitingCallAlert";
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -41,6 +41,9 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link to="/shift-summary" className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+            Shift Summary
+          </Link>
           <TimeFilter value={timeWindow} onChange={setTimeWindow} />
           <button
             onClick={refresh}

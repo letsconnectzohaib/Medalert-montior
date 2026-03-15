@@ -1,24 +1,26 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-// This API route acts as a proxy between the Next.js frontend and the separate backend server.
-// This is a best practice for security and abstraction. The frontend only ever talks to its own backend.
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { query } = req;
-  const { shiftDate } = query;
-
-  // We are fetching data for the "analytical-breakdown" which is the most complex view.
-  // We can easily add more endpoints here later.
-  const endpoint = 'analytical-breakdown';
+  const { shiftDate, campaign, group } = query;
 
   if (!shiftDate) {
     return res.status(400).json({ success: false, error: 'shiftDate is required' });
   }
 
   try {
-    // Forward the request to the actual backend server.
-    // The NEXT_PUBLIC_ANALYTICS_API_URL would be 'http://localhost:3001' in development.
-    const apiUrl = `${process.env.NEXT_PUBLIC_ANALYTICS_API_URL}/api/summary/${endpoint}/${shiftDate}`;
+    const queryParams = new URLSearchParams();
+    queryParams.append('shiftDate', shiftDate as string);
+    if (campaign && typeof campaign === 'string') {
+        queryParams.append('campaign', campaign);
+    }
+    if (group && typeof group === 'string') {
+        queryParams.append('group', group);
+    }
+    
+    const queryString = queryParams.toString();
+    const apiUrl = `${process.env.NEXT_PUBLIC_ANALYTICS_API_URL}/api/summary?${queryString}`;
     
     const backendRes = await fetch(apiUrl);
 

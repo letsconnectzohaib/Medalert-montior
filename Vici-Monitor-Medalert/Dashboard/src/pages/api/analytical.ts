@@ -3,10 +3,10 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { query } = req;
-  const { type, endDate, campaign, group } = query;
+  const { shiftDate, campaign, group } = query;
 
-  if (!type || !endDate) {
-    return res.status(400).json({ success: false, error: 'type and endDate are required' });
+  if (!shiftDate) {
+    return res.status(400).json({ success: false, error: 'shiftDate is required' });
   }
 
   try {
@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     
     const queryString = queryParams.toString();
-    const apiUrl = `${process.env.NEXT_PUBLIC_ANALYTICS_API_URL}/api/trends/${type}/${endDate}${queryString ? `?${queryString}` : ''}`;
+    const apiUrl = `${process.env.NEXT_PUBLIC_ANALYTICS_API_URL}/api/analytical/breakdown/${shiftDate}${queryString ? `?${queryString}` : ''}`;
     
     const backendRes = await fetch(apiUrl);
 

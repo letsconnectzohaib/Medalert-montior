@@ -1,53 +1,68 @@
-import { createContext, useContext, useState, ReactNode, useCallback } from "react";
+
+import React, { createContext, useState, useContext, useEffect } from 'react';
+
+interface User {
+    username: string;
+    role: string;
+}
 
 interface AuthContextType {
-  isAuthenticated: boolean;
-  user: { username: string; role: string } | null;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+    user: User | null;
+    isAuthenticated: boolean;
+    login: (userData: User) => void;
+    logout: () => void;
+    checkUser: () => void; 
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const VALID_CREDENTIALS = { username: "admin", password: "connectx2026" };
+export const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState<User | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem("vicidial_auth") === "true";
-  });
-  const [user, setUser] = useState<{ username: string; role: string } | null>(() => {
-    const stored = sessionStorage.getItem("vicidial_user");
-    return stored ? JSON.parse(stored) : null;
-  });
+    useEffect(() => {
+        checkUser();
+    }, []);
 
-  const login = useCallback((username: string, password: string) => {
-    if (username === VALID_CREDENTIALS.username && password === VALID_CREDENTIALS.password) {
-      setIsAuthenticated(true);
-      const u = { username, role: "Administrator" };
-      setUser(u);
-      sessionStorage.setItem("vicidial_auth", "true");
-      sessionStorage.setItem("vicidial_user", JSON.stringify(u));
-      return true;
+    const checkUser = async () => {
+        try {
+            // This endpoint will be created to verify the token from the cookie
+            const response = await fetch('/api/auth/verify'); 
+            if (response.ok) {
+                const data = await response.json();
+                if(data.user) setUser(data.user);
+                else setUser(null);
+            } else {
+                setUser(null);
+            }
+        } catch (error) {
+            setUser(null);
+        }
+    };
+
+    const login = (userData: User) => {
+        setUser(userData);
+    };
+
+    const logout = async () => {
+        try {
+            await fetch('/api/auth/logout');
+            setUser(null);
+        } catch(error) {
+            console.error("Logout failed", error);
+        }
+    };
+
+    return (
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, checkUser }}>
+            {children}
+        </AuthContext.Provider>
+    );
+};
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider');
     }
-    return false;
-  }, []);
-
-  const logout = useCallback(() => {
-    setIsAuthenticated(false);
-    setUser(null);
-    sessionStorage.removeItem("vicidial_auth");
-    sessionStorage.removeItem("vicidial_user");
-  }, []);
-
-  return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-}
+    return context;
+};
