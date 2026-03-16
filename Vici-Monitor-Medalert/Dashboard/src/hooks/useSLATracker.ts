@@ -12,11 +12,21 @@ export interface SLAMetrics {
   abandonRate: number;
 }
 
+interface ChartData {
+  agents: any[];
+  calls: any[];
+  sla: {
+    current: any;
+    threshold: number;
+    percentage: number;
+  };
+}
+
 function rand(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-export function useSLATracker(targetSeconds: number = 20) {
+export function useSLATracker(targetSeconds: number = 20, waitingCalls: number = 0) {
   const [metrics, setMetrics] = useState<SLAMetrics>(() => generateMetrics(targetSeconds));
 
   useEffect(() => {
