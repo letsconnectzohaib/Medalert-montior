@@ -21,7 +21,8 @@ import SettingsPage from "./pages/SettingsPage";
 import ShiftSummary from "./pages/ShiftSummary";
 import { DashboardLayout } from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
-import ErrorBoundary from "@/components/ErrorBoundary"; // Import the ErrorBoundary
+import ErrorBoundary from "@/components/ErrorBoundary";
+import EnhancedErrorBoundary from "@/components/EnhancedErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -39,7 +40,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 const App = () => (
-  <ErrorBoundary>
+  <EnhancedErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -69,7 +70,7 @@ const App = () => (
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
-  </ErrorBoundary>
+  </EnhancedErrorBoundary>
 );
 
 export default App;

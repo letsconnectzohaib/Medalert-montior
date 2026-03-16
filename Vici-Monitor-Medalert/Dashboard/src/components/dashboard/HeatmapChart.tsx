@@ -7,12 +7,30 @@ interface HeatmapChartProps {
 
 export function HeatmapChart({ data }: HeatmapChartProps) {
   // Create a grid showing call volume intensity over time
-  const buckets = data.slice(-24).map(s => ({
-    time: format(new Date(s.timestamp), "HH:mm"),
-    active: s.data.summary.activeCalls,
-    waiting: s.data.summary.waitingCalls,
-    agents: s.data.summary.agentsInCalls,
-  }));
+  const buckets = data.slice(-24).map(s => {
+    // Safely parse timestamp
+    let timestamp = new Date().toISOString(); // fallback
+    try {
+      if (s.timestamp) {
+        const parsedDate = new Date(s.timestamp);
+        if (!isNaN(parsedDate.getTime())) {
+          timestamp = s.timestamp;
+        }
+      }
+    } catch (error) {
+      console.warn('Invalid timestamp in heatmap data:', s.timestamp);
+    }
+    
+    // Safely access nested data with fallbacks
+    const summary = s?.data?.summary as any || {};
+    
+    return {
+      time: format(new Date(timestamp), "HH:mm"),
+      active: summary.activeCalls || 0,
+      waiting: summary.waitingCalls || 0,
+      agents: summary.agentsInCalls || 0,
+    };
+  });
 
   const maxActive = Math.max(...buckets.map(b => b.active), 1);
 

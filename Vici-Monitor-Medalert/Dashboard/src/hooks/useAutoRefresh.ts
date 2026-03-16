@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { getRealTimeSummary } from "@/services/apiService";
+import { getRealTimeSummary, parseWaitTime } from "@/services/apiService";
 
-// Define interfaces for real data
+// Define interfaces for real data - matching VicidialSnapshot
 interface RealTimeData {
   timestamp: string;
   data: {
+    timestamp: string;
     summary: {
       activeCalls: number;
       ringingCalls: number;
@@ -19,18 +20,31 @@ interface RealTimeData {
     };
     details: {
       waitingCalls: Array<{
+        status: string;
         campaign: string;
-        phone_number: string;
-        wait_time: number;
+        phone: string;
+        server: string;
+        wait: string;
+        type: string;
+        priority: string;
       }>;
       agents: Array<{
-        user_name: string;
-        status: string;
         station: string;
+        user: string;
+        session: string;
+        status: string;
+        time: string;
         campaign: string;
-        vicidial_state_color: string;
-        calls_today: number;
+        calls: number;
       }>;
+    };
+    meta: {
+      dialLevel: string;
+      dialableLeads: number;
+      callsToday: number;
+      droppedAnswered: string;
+      avgAgents: number;
+      dialMethod: string;
     };
   };
 }
@@ -91,30 +105,35 @@ export function useAutoRefresh(timeWindow: number, intervalMs = 15000) {
   const chartData = useMemo((): ChartData => {
       if (shiftData.length === 0) return { agents: [], calls: [], sla: { current: 0, threshold: 20, percentage: 0 } };
       
-      // Transform real data for chart compatibility
+      // Transform real data for chart compatibility with error handling
       const summary = shiftData[0]?.data?.summary || {};
       const agents = shiftData[0]?.data?.details?.agents || [];
       const waitingCalls = shiftData[0]?.data?.details?.waitingCalls || [];
       
-      return {
-        agents: agents.map(agent => ({
-          name: agent.user_name,
-          status: agent.status,
-          station: agent.station,
-          campaign: agent.campaign,
-          calls: agent.calls_today || 0
-        })),
-        calls: waitingCalls.map(call => ({
-          timestamp: new Date().toISOString(),
-          agent: call.phone_number,
-          duration: call.wait_time
-        })),
-        sla: {
-          current: (summary as any).agentsWaiting || 0,
-          threshold: 20,
-          percentage: Math.max(0, 100 - (((summary as any).agentsWaiting || 0) / 20) * 100)
-        }
-      };
+      try {
+        return {
+          agents: agents.map(agent => ({
+            name: agent.user || 'Unknown',
+            status: agent.status || 'Unknown',
+            station: agent.station || 'Unknown',
+            campaign: agent.campaign || 'Unknown',
+            calls: agent.calls || 0
+          })),
+          calls: waitingCalls.map(call => ({
+            timestamp: new Date().toISOString(),
+            agent: call.phone || 'Unknown',
+            duration: parseWaitTime(String(call.wait))
+          })),
+          sla: {
+            current: (summary as any).agentsWaiting || 0,
+            threshold: 20,
+            percentage: Math.max(0, 100 - (((summary as any).agentsWaiting || 0) / 20) * 100)
+          }
+        };
+      } catch (error) {
+        console.error('Error transforming chart data:', error);
+        return { agents: [], calls: [], sla: { current: 0, threshold: 20, percentage: 0 } };
+      }
     },
     [shiftData, timeWindow]
   );

@@ -30,16 +30,36 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export default function QueueMonitor() {
   const { soundEnabled } = useOutletContext<{ soundEnabled: boolean }>();
-  const { latestSnapshot, chartData } = useAutoRefresh(60);
+  const { latestSnapshot, shiftData, chartData } = useAutoRefresh(60);
   const sla = useSLATracker(20);
-  const s = latestSnapshot.data.summary;
-  const { isAboveThreshold } = useWaitingCallAlert(s.waitingCalls, soundEnabled);
+  
+  // Explicitly type the summary to avoid TypeScript inference issues
+  const summary: any = latestSnapshot?.data?.summary || {};
+  const { isAboveThreshold } = useWaitingCallAlert(summary.waitingCalls || 0, soundEnabled);
 
-  const queueData = chartData.map(d => ({
-    time: format(new Date(d.timestamp), "HH:mm"),
-    waiting: d.data.summary.waitingCalls,
-    active: d.data.summary.activeCalls,
-  }));
+  const queueData = shiftData.map(d => {
+    // Safely parse timestamp
+    let timestamp = new Date().toISOString(); // fallback
+    try {
+      if (d.timestamp) {
+        const parsedDate = new Date(d.timestamp);
+        if (!isNaN(parsedDate.getTime())) {
+          timestamp = d.timestamp;
+        }
+      }
+    } catch (error) {
+      console.warn('Invalid timestamp in queue data:', d.timestamp);
+    }
+    
+    // Safely access nested data with fallbacks
+    const summary = d?.data?.summary as any || {};
+    
+    return {
+      time: format(new Date(timestamp), "HH:mm"),
+      waiting: summary.waitingCalls || 0,
+      active: summary.activeCalls || 0,
+    };
+  });
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 py-6 space-y-5">
@@ -58,7 +78,7 @@ export default function QueueMonitor() {
           <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
           <div>
             <p className="text-sm font-semibold text-destructive">Critical Queue Level</p>
-            <p className="text-xs text-destructive/80">{s.waitingCalls} calls waiting — immediate attention required</p>
+            <p className="text-xs text-destructive/80">{summary.waitingCalls} calls waiting — immediate attention required</p>
           </div>
         </div>
       )}
@@ -66,9 +86,9 @@ export default function QueueMonitor() {
       {/* Queue KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Waiting Now", value: s.waitingCalls, icon: Clock, color: s.waitingCalls >= 5 ? "text-warning" : "text-foreground" },
-          { label: "Active Calls", value: s.activeCalls, icon: PhoneIncoming, color: "text-primary" },
-          { label: "Available Agents", value: s.agentsWaiting, icon: Users, color: s.agentsWaiting === 0 ? "text-destructive" : "text-success" },
+          { label: "Waiting Now", value: summary.waitingCalls, icon: Clock, color: summary.waitingCalls >= 5 ? "text-warning" : "text-foreground" },
+          { label: "Active Calls", value: summary.activeCalls, icon: PhoneIncoming, color: "text-primary" },
+          { label: "Available Agents", value: summary.agentsWaiting, icon: Users, color: summary.agentsWaiting === 0 ? "text-destructive" : "text-success" },
           { label: "Avg Speed Answer", value: `${sla.avgWaitTime}s`, icon: Zap, color: "text-primary" },
         ].map((kpi, i) => (
           <div key={i} className="glass-panel p-4">

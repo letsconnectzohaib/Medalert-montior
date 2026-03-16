@@ -52,7 +52,14 @@ const TrendsView = ({ endDate }) => {
                         dataKey="date" 
                         tick={{ fill: 'hsl(215, 12%, 70%)', fontSize: 10 }}
                         stroke="transparent"
-                        tickFormatter={(dateStr) => new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        tickFormatter={(dateStr) => {
+                            try {
+                                const date = new Date(dateStr);
+                                return isNaN(date.getTime()) ? dateStr : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            } catch (error) {
+                                return dateStr;
+                            }
+                        }}
                     />
                     <YAxis 
                         tick={{ fill: 'hsl(215, 12%, 70%)', fontSize: 12 }} 
@@ -60,7 +67,14 @@ const TrendsView = ({ endDate }) => {
                     />
                     <Tooltip 
                         contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.8)', border: '1px solid hsl(220, 14%, 25%)' }}
-                        labelFormatter={(dateStr) => new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        labelFormatter={(dateStr) => {
+                            try {
+                                const date = new Date(dateStr);
+                                return isNaN(date.getTime()) ? dateStr : date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                            } catch (error) {
+                                return dateStr;
+                            }
+                        }}
                     />
                     <Legend wrapperStyle={{ fontSize: '12px' }} />
                     <Line 

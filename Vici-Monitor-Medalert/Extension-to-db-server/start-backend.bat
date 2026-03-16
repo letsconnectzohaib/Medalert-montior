@@ -11,5 +11,8 @@ if not exist node_modules (
 
 echo Backend server is running...
 echo Listening for data from the browser extension and saving to the database.
+echo.
+echo Use 'npm run verbose' for detailed logging if needed.
+echo.
 
 node server.js

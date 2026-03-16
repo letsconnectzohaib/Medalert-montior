@@ -8,6 +8,16 @@ const fs = require('fs');
 const app = express();
 const PORT = 3000;
 
+// Check for verbose flag
+const isVerbose = process.argv.includes('--verbose') || process.argv.includes('-v');
+
+// Minimal logging function
+function log(message, forceVerbose = false) {
+    if (isVerbose || forceVerbose) {
+        console.log(message);
+    }
+}
+
 // Database path
 const DB_PATH = path.join(__dirname, '..', 'shared-database', 'database', 'vicidial_monitor.db');
 
@@ -26,6 +36,16 @@ app.use(bodyParser.json({ limit: '10mb' }));
 // Database connection
 let db;
 
+// Rotating emojis for data received messages
+let emojiIndex = 0;
+const dataEmojis = ['📥', '📊', '🔄', '💾', '📈', '🌐', '⚡', '🎯'];
+
+function getNextDataEmoji() {
+    const emoji = dataEmojis[emojiIndex];
+    emojiIndex = (emojiIndex + 1) % dataEmojis.length;
+    return emoji;
+}
+
 /**
  * Initialize database and create tables
  */
@@ -42,7 +62,7 @@ function initializeDatabase() {
                 console.error('Error opening database:', err);
                 reject(err);
             } else {
-                console.log('✅ Connected to SQLite database');
+                log('✅ Connected to SQLite database', true);
                 createTables()
                     .then(() => resolve())
                     .catch(reject);
@@ -126,7 +146,7 @@ function createTables() {
                 if (err) {
                     reject(err);
                 } else {
-                    console.log('✅ Database tables created successfully');
+                    log('✅ Database tables created successfully', true);
                     resolve();
                 }
             });
@@ -276,7 +296,7 @@ async function saveExtensionData(data) {
                     db.run('ROLLBACK');
                     reject(err);
                 } else {
-                    console.log(`✅ Data saved to database for shift ${shiftDate}`);
+                    log(`📊 New data saved for shift ${shiftDate}`);
                     resolve({ success: true, shiftDate });
                 }
             });
@@ -285,9 +305,11 @@ async function saveExtensionData(data) {
 }
 
 /**
- * Log data for debugging
+ * Log data for debugging (only in verbose mode)
  */
 function logDataForDebugging(logEntry, timestamp) {
+    if (!isVerbose) return;
+    
     console.log('\n=== NEW DATA RECEIVED FROM EXTENSION ===');
     console.log('Timestamp:', timestamp);
     console.log('Raw Data:', JSON.stringify(logEntry, null, 2));
@@ -356,8 +378,11 @@ app.post('/api/logs', async (req, res) => {
     const timestamp = new Date().toISOString();
     
     try {
-        // Log for debugging
+        // Log for debugging (only in verbose mode)
         logDataForDebugging(logEntry, timestamp);
+        
+        // Show minimal data received message (always show with rotating emoji)
+        console.log(`${getNextDataEmoji()} Data received from extension, saving to database...`);
         
         // Save to database
         const result = await saveExtensionData(logEntry);
@@ -463,25 +488,25 @@ app.get('/api/waiting-calls', (req, res) => {
 // --- Server Start ---
 async function startServer() {
     try {
-        console.log('🚀 Starting Extension-to-Database Server...');
+        log('🚀 Starting Extension-to-Database Server...', true);
         
         // Initialize database
         await initializeDatabase();
         
         const server = app.listen(PORT, () => {
-            console.log(`🌐 Server running on http://localhost:${PORT}`);
-            console.log('📊 Ready to receive data from extension');
+            log(`🌐 Server running on http://localhost:${PORT}`, true);
+            log('📊 Ready to receive data from extension', true);
         });
         
         // Graceful shutdown
         const gracefulShutdown = (signal) => {
-            console.log(`\n🔄 Received ${signal}. Closing database connection...`);
+            log(`\n🔄 Received ${signal}. Closing database connection...`, true);
             if (db) {
                 db.close((err) => {
                     if (err) {
                         console.error('Error closing database:', err);
                     } else {
-                        console.log('✅ Database connection closed');
+                        log('✅ Database connection closed', true);
                     }
                     process.exit(0);
                 });

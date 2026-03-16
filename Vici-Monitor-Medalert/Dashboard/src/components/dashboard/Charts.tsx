@@ -13,15 +13,33 @@ interface ChartData {
 }
 
 function toChartData(snapshots: VicidialSnapshot[]): ChartData[] {
-  return snapshots.map(s => ({
-    time: format(new Date(s.timestamp), "HH:mm"),
-    activeCalls: s.data.summary.activeCalls,
-    waitingCalls: s.data.summary.waitingCalls,
-    agentsInCalls: s.data.summary.agentsInCalls,
-    agentsWaiting: s.data.summary.agentsWaiting,
-    agentsPaused: s.data.summary.agentsPaused,
-    agentsLoggedIn: s.data.summary.agentsLoggedIn,
-  }));
+  return snapshots.map(s => {
+    // Safely parse timestamp
+    let timestamp = new Date().toISOString(); // fallback
+    try {
+      if (s.timestamp) {
+        const parsedDate = new Date(s.timestamp);
+        if (!isNaN(parsedDate.getTime())) {
+          timestamp = s.timestamp;
+        }
+      }
+    } catch (error) {
+      console.warn('Invalid timestamp in chart data:', s.timestamp);
+    }
+    
+    // Safely access nested data with fallbacks
+    const summary = s?.data?.summary as any || {};
+    
+    return {
+      time: format(new Date(timestamp), "HH:mm"),
+      activeCalls: summary.activeCalls || 0,
+      waitingCalls: summary.waitingCalls || 0,
+      agentsInCalls: summary.agentsInCalls || 0,
+      agentsWaiting: summary.agentsWaiting || 0,
+      agentsPaused: summary.agentsPaused || 0,
+      agentsLoggedIn: summary.agentsLoggedIn || 0,
+    };
+  });
 }
 
 const CYAN = "hsl(187, 80%, 48%)";
