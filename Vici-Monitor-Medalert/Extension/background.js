@@ -45,6 +45,12 @@ const sendDataToBackend = async (data) => {
 
         if (response.ok) {
             lastSuccessfulRequest = Date.now();
+            // Notify popup that stats have been updated
+            chrome.runtime.sendMessage({ action: 'statsUpdated', data: data }, () => {
+                if (chrome.runtime.lastError) {
+                    // Silently handle - popup might be closed
+                }
+            });
             return { success: true };
         } else {
             const errorData = await response.json();
@@ -61,7 +67,12 @@ const updateStatus = (newStatus) => {
     if (backendStatus === newStatus) return;
     backendStatus = newStatus;
     // Broadcast status change to all parts of the extension (like the popup)
-    chrome.runtime.sendMessage({ action: 'backendStatusChanged', status: backendStatus });
+    chrome.runtime.sendMessage({ action: 'backendStatusChanged', status: backendStatus }, () => {
+        if (chrome.runtime.lastError) {
+            // Silently handle - no receivers (popup closed, etc.)
+            console.log('Status update sent, no active receivers');
+        }
+    });
     console.log(`Vici-Monitor: Backend status is now ${backendStatus.toUpperCase()}`);
 };
 
@@ -74,7 +85,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendDataToBackend(message.data).then(sendResponse);
     } else if (message.action === 'getBackendStatus') {
         // Immediately return the cached status
-        sendResponse({ status: backendStatus });
+        sendResponse({ isRunning: backendStatus === 'online' });
     }
     return true; // Indicates an async response
 });

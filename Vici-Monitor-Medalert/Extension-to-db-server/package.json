@@ -1,18 +1,13 @@
 {
   "name": "vicidial-monitor-backend",
   "version": "1.0.0",
-  "description": "Professional CLI backend for ViciDial Stats Monitor",
-  "main": "src/cli/index.js",
-  "bin": {
-    "vicidial-monitor": "./src/cli/index.js"
-  },
+  "description": "Professional backend for ViciDial Stats Monitor - Extension to Database Server",
+  "main": "server.js",
   "scripts": {
-    "start": "node src/cli start",
-    "dev": "nodemon src/cli start",
-    "status": "node src/cli status",
-    "stats": "node src/cli stats",
-    "health": "node src/cli health",
-    "monitor": "node src/cli monitor"
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "health": "curl http://localhost:3000/api/health",
+    "status": "node server.js --status"
   },
   "dependencies": {
     "body-parser": "^1.20.4",

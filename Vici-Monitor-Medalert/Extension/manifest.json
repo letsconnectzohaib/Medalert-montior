@@ -16,8 +16,9 @@
   },
   "host_permissions": [
     "https://axcl2s.dialerhosting.com/*",
-    "https://hooks.slack.com/*",
-    "http://localhost:3000/*"
+    "https://*.dialerhosting.com/*",
+    "http://localhost:3000/*",
+    "https://hooks.slack.com/*"
   ],
   "icons": {
     "16": "icon16.png",
@@ -26,7 +27,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://axcl2s.dialerhosting.com/*"],
+      "matches": ["https://axcl2s.dialerhosting.com/*", "https://*.dialerhosting.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

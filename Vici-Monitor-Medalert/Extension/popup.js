@@ -5,12 +5,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const contents = document.querySelectorAll('.tab-content');
     const loader = document.getElementById('loader');
     const errorState = document.getElementById('error-state');
+    const serverDownState = document.getElementById('server-down-state');
+    const serverStatusSection = document.getElementById('server-status-section');
     const connectionStatus = document.getElementById('connection-status');
     const elBackendStatus = document.getElementById('backend-status');
     const elAgentsList = document.getElementById('agents-list');
     const elCallsList = document.getElementById('calls-list');
     const elLastUpdated = document.getElementById('last-updated');
     const btnOpenDialer = document.getElementById('open-dialer-btn');
+    const btnRetryConnection = document.getElementById('retry-connection-btn');
+    const btnOpenVicidial = document.getElementById('open-vicidial-btn');
 
     // Dashboard Elements
     const ui = {
@@ -56,6 +60,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             chrome.tabs.create({ url: 'https://axcl2s.dialerhosting.com/Xcl2s6wgd/realtime_report.php?report_display_type=HTML' });
         });
 
+        // Add retry button listener
+        if (btnRetryConnection) {
+            btnRetryConnection.addEventListener('click', () => {
+                // Retry backend connection check
+                chrome.runtime.sendMessage({ action: 'getBackendStatus' }, response => {
+                    if (chrome.runtime.lastError) {
+                        console.error('Retry failed:', chrome.runtime.lastError.message);
+                    } else if (response && response.isRunning !== undefined) {
+                        updateBackendStatusUI(response.isRunning ? 'online' : 'offline');
+                    }
+                });
+            });
+        }
+
+        // Add Open Vicidial button listener (in server down state)
+        if (btnOpenVicidial) {
+            btnOpenVicidial.addEventListener('click', () => {
+                chrome.tabs.create({ url: 'https://axcl2s.dialerhosting.com/Xcl2s6wgd/realtime_report.php?report_display_type=HTML' });
+            });
+        }
+
         chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             switch (message.action) {
                 case 'statsUpdated':
@@ -74,8 +99,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (chrome.runtime.lastError) {
                 console.error('Could not get backend status:', chrome.runtime.lastError.message);
                 updateBackendStatusUI('offline');
-            } else if (response && response.status) {
-                updateBackendStatusUI(response.status);
+            } else if (response && response.isRunning !== undefined) {
+                updateBackendStatusUI(response.isRunning ? 'online' : 'offline');
+            } else {
+                updateBackendStatusUI('offline');
             }
         });
 
@@ -124,17 +151,39 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'online':
                 elBackendStatus.textContent = 'Online';
                 elBackendStatus.classList.add('connected');
+                elBackendStatus.classList.remove('disconnected');
                 elBackendStatus.title = 'Backend server is running.';
+                hideServerDownOverlay();
                 break;
             case 'offline':
                 elBackendStatus.textContent = 'Offline';
                 elBackendStatus.classList.add('disconnected');
+                elBackendStatus.classList.remove('connected');
                 elBackendStatus.title = 'Backend server is down. Data is not being saved.';
+                showServerDownOverlay();
                 break;
             default: // pending
                 elBackendStatus.textContent = 'Checking...';
                 elBackendStatus.classList.add('disconnected');
+                elBackendStatus.classList.remove('connected');
                 elBackendStatus.title = 'Checking backend connection...';
+                hideServerDownOverlay();
+        }
+    }
+
+    function showServerDownOverlay() {
+        if (serverDownState) {
+            serverDownState.classList.remove('hidden');
+        }
+        // Also hide compact section if it exists
+        if (serverStatusSection) {
+            serverStatusSection.classList.add('hidden');
+        }
+    }
+
+    function hideServerDownOverlay() {
+        if (serverDownState) {
+            serverDownState.classList.add('hidden');
         }
     }
 
@@ -160,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateDashboard(summary, meta) {
         ui.active.textContent = summary.activeCalls || 0;
-        ui.waiting.textContent = summary.waitingCalls || 0;
+        ui.waiting.textContent = summary.callsWaiting || 0;
         ui.agents.textContent = summary.agentsLoggedIn || 0;
         ui.total.textContent = meta.callsToday || 0;
         ui.dropped.textContent = meta.droppedAnswered || '0%';
@@ -169,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ui.ivr.textContent = summary.ivrCalls || 0;
         ui.paused.textContent = summary.agentsPaused || 0;
 
-        if (summary.waitingCalls >= settings.waitingCallsThreshold) {
+        if (summary.callsWaiting >= settings.waitingCallsThreshold) {
             ui.waiting.parentElement.classList.add('pulse-danger');
         } else {
             ui.waiting.parentElement.classList.remove('pulse-danger');
@@ -196,7 +245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <span title="${agent.user}">${agent.user}</span>
                 </div>
                 <div style="font-weight:bold; font-size:10px; color:#aaa;">${agent.status}</div>
-                <div>${agent.time}</div>
+                <div>${agent.time || 'N/A'}</div>
             `;
             elAgentsList.appendChild(row);
         });
@@ -212,9 +261,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const row = document.createElement('div');
             row.className = 'list-item';
             row.innerHTML = `
-                <div style="font-family:monospace;">${call.phone}</div>
-                <div>${call.campaign}</div>
-                <div style="color:var(--danger-color); font-weight:bold;">${call.wait}</div>
+                <div style="font-family:monospace;">${call.phone || 'N/A'}</div>
+                <div>${call.campaign || 'N/A'}</div>
+                <div style="color:var(--danger-color); font-weight:bold;">${call.dialtime || 'N/A'}</div>
             `;
             elCallsList.appendChild(row);
         });

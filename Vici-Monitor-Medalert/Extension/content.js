@@ -4,6 +4,8 @@
     'use strict';
 
     console.log('Vicidial Stats Monitor: Content script v2.0 loaded.');
+    console.log('Current URL:', window.location.href);
+    console.log('Looking for realtime_content div...');
 
     let isBackendRunning = false;
     let observer = null;
@@ -20,11 +22,25 @@
             if (chrome.runtime.lastError) {
                 console.warn('Vicidial Stats Monitor: Background script connection lost.');
                 if (isBackendRunning) handleStatusChange(false);
-                cleanup();
+                // Don't cleanup - keep trying to reconnect
                 return;
             }
             handleStatusChange(response.isRunning);
         });
+    }
+
+    function startStatusChecking() {
+        if (statusCheckInterval) return;
+        statusCheckInterval = setInterval(checkBackendStatus, 2000); // Check every 2 seconds
+        console.log('Started persistent backend status checking');
+    }
+
+    function stopStatusChecking() {
+        if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
+            statusCheckInterval = null;
+            console.log('Stopped backend status checking');
+        }
     }
 
     function handleStatusChange(isRunning) {
@@ -41,14 +57,16 @@
 
     function startScraping() {
         if (observer) return;
-        const targetNode = document.body;
+        // Look for any agent rows or the main table
+        const targetNode = document.querySelector('table[width="860"]') || document.body;
         if (!targetNode) {
-             document.addEventListener('DOMContentLoaded', () => startScraping());
-             return;
+            console.log('Vicidial Stats Monitor: Target table not found yet, waiting...');
+            setTimeout(startScraping, 1000);
+            return;
         }
         observer = new MutationObserver(() => throttle(extractAndSendData, 1500));
         observer.observe(targetNode, { childList: true, subtree: true, characterData: true });
-        console.log('MutationObserver is now watching the document body.');
+        console.log('MutationObserver is now watching the agent table.');
         extractAndSendData();
     }
 
@@ -114,12 +132,27 @@
 
     function extractSummary() {
         const bodyText = document.body.innerText;
-        const safeMatch = (regex) => (bodyText.match(regex) || [])[1] || '0';
+        
+        // Count agents in different statuses
+        const agentRows = Array.from(document.querySelectorAll('tr[class^="TR"]'));
+        const agentsLoggedIn = agentRows.length;
+        const agentsInCalls = agentRows.filter(row => {
+            const statusCell = row.cells[6];
+            return statusCell && statusCell.innerText.trim() === 'INCALL';
+        }).length;
+        
+        // Count waiting calls
+        const waitingCallsElements = document.querySelectorAll('tr[class^="csc"]');
+        const callsWaiting = waitingCallsElements.length;
+        
+        // Active calls is same as agents in calls for this system
+        const activeCalls = agentsInCalls;
+        
         return {
-            activeCalls: parseInt(safeMatch(/(\d+)\s+current active calls/i)),
-            agentsLoggedIn: parseInt(safeMatch(/(\d+)\s+agents logged in/i)),
-            agentsInCalls: parseInt(safeMatch(/(\d+)\s+agents in calls/i)),
-            callsWaiting: parseInt(safeMatch(/(\d+)\s+calls waiting for agents/i)),
+            activeCalls: activeCalls,
+            agentsLoggedIn: agentsLoggedIn,
+            agentsInCalls: agentsInCalls,
+            callsWaiting: callsWaiting,
         };
     }
 
@@ -194,18 +227,16 @@
                 }
             });
         }
-        return waitingCalls;
-    }
 
+    return waitingCalls;
+    }
 
     // --- 3. Initialization ---
+    // Start checking backend status immediately
+    startStatusChecking();
+    checkBackendStatus(); // Also check immediately
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', checkBackendStatus);
-    } else {
-        checkBackendStatus();
-    }
-    
-    statusCheckInterval = setInterval(checkBackendStatus, 5000);
+    // Keep the content script alive
+    console.log('Vicidial Stats Monitor: Initialized and running persistently');
 
 })();

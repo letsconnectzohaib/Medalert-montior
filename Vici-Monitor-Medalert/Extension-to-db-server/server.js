@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -8,41 +7,144 @@ const fs = require('fs');
 
 const app = express();
 const PORT = 3000;
-const DB_FILE = path.join(__dirname, 'vicidial_stats.db');
+
+// Database path
+const DB_PATH = path.join(__dirname, '..', 'shared-database', 'database', 'vicidial_monitor.db');
 
 // --- Configurable Shift Settings ---
 let shiftSettings = {
-  TIMEZONE: 'Asia/Karachi', // PKT
-  SHIFT_START_HOUR: 19, // 7:00 PM
-  SHIFT_START_MINUTE: 0,
-  SHIFT_END_HOUR: 4, // 4:00 AM
-  SHIFT_END_MINUTE: 30,
+    TIMEZONE: 'Asia/Karachi', // PKT
+    SHIFT_START_HOUR: 19, // 7:00 PM
+    SHIFT_START_MINUTE: 0,
+    SHIFT_END_HOUR: 4, // 4:00 AM
+    SHIFT_END_MINUTE: 30,
 };
-
 
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-const dbDir = path.dirname(DB_FILE);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+// Database connection
+let db;
+
+/**
+ * Initialize database and create tables
+ */
+function initializeDatabase() {
+    return new Promise((resolve, reject) => {
+        // Ensure database directory exists
+        const dbDir = path.dirname(DB_PATH);
+        if (!fs.existsSync(dbDir)) {
+            fs.mkdirSync(dbDir, { recursive: true });
+        }
+
+        db = new sqlite3.Database(DB_PATH, (err) => {
+            if (err) {
+                console.error('Error opening database:', err);
+                reject(err);
+            } else {
+                console.log('✅ Connected to SQLite database');
+                createTables()
+                    .then(() => resolve())
+                    .catch(reject);
+            }
+        });
+    });
 }
 
-const db = new sqlite3.Database(DB_FILE, (err) => {
-  if (err) console.error('Error opening database:', err);
-  else console.log('Connected to SQLite database');
-});
+/**
+ * Create database tables
+ */
+function createTables() {
+    return new Promise((resolve, reject) => {
+        db.serialize(() => {
+            // Agent Logs Table
+            db.run(`CREATE TABLE IF NOT EXISTS agent_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                station TEXT NOT NULL,
+                user TEXT NOT NULL,
+                session TEXT,
+                status TEXT NOT NULL,
+                time TEXT,
+                state_color TEXT,
+                pause_code TEXT DEFAULT '',
+                campaign TEXT,
+                calls INTEGER DEFAULT 0,
+                agent_group TEXT,
+                shift_date DATE DEFAULT (DATE('now')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            // Summary Stats Table
+            db.run(`CREATE TABLE IF NOT EXISTS summary_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                active_calls INTEGER DEFAULT 0,
+                agents_logged_in INTEGER DEFAULT 0,
+                agents_in_calls INTEGER DEFAULT 0,
+                calls_waiting INTEGER DEFAULT 0,
+                ringing_calls INTEGER DEFAULT 0,
+                ivr_calls INTEGER DEFAULT 0,
+                agents_paused INTEGER DEFAULT 0,
+                agents_waiting INTEGER DEFAULT 0,
+                agents_dispo INTEGER DEFAULT 0,
+                agents_dead INTEGER DEFAULT 0,
+                total_calls INTEGER DEFAULT 0,
+                dropped_percentage TEXT DEFAULT '0%',
+                dial_level TEXT,
+                dialable_leads INTEGER DEFAULT 0,
+                shift_date DATE DEFAULT (DATE('now')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            // Waiting Calls Table
+            db.run(`CREATE TABLE IF NOT EXISTS waiting_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                phone TEXT,
+                campaign TEXT,
+                status TEXT,
+                server TEXT,
+                dial_time TEXT,
+                call_type TEXT,
+                priority INTEGER DEFAULT 0,
+                shift_date DATE DEFAULT (DATE('now')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            // Meta Data Table
+            db.run(`CREATE TABLE IF NOT EXISTS meta_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                dial_level TEXT,
+                dialable_leads INTEGER DEFAULT 0,
+                calls_today INTEGER DEFAULT 0,
+                dropped_answered INTEGER DEFAULT 0,
+                shift_date DATE DEFAULT (DATE('now')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`, (err) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    console.log('✅ Database tables created successfully');
+                    resolve();
+                }
+            });
+        });
+    });
+}
 
 // --- Business Logic for Shifts ---
 function getShiftDate(timestamp) {
     const date = new Date(timestamp);
-
-    //This is a simple example, in a real-world scenario you would use a robust library like date-fns-tz or luxon for this
-    const localHour = date.getUTCHours() + 5; // Simple approximation for PKT (UTC+5)
+    
+    // Simple approximation for PKT (UTC+5)
+    const localHour = date.getUTCHours() + 5;
     const localMinute = date.getUTCMinutes();
 
-    // If the time is before the end of the shift (e.g., before 4:30 AM), it belongs to the previous day's shift
-    if (localHour < shiftSettings.SHIFT_END_HOUR || (localHour === shiftSettings.SHIFT_END_HOUR && localMinute < shiftSettings.SHIFT_END_MINUTE)) {
+    // If time is before end of shift (e.g., before 4:30 AM), it belongs to previous day's shift
+    if (localHour < shiftSettings.SHIFT_END_HOUR || 
+        (localHour === shiftSettings.SHIFT_END_HOUR && localMinute < shiftSettings.SHIFT_END_MINUTE)) {
         date.setDate(date.getDate() - 1);
     }
 
@@ -50,127 +152,352 @@ function getShiftDate(timestamp) {
     return date.toISOString().split('T')[0];
 }
 
+/**
+ * Save extension data to database
+ */
+async function saveExtensionData(data) {
+    return new Promise((resolve, reject) => {
+        const timestamp = new Date().toISOString();
+        const shiftDate = getShiftDate(timestamp);
+        
+        db.serialize(() => {
+            db.run('BEGIN TRANSACTION');
 
-async function initializeDatabase() {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      db.run(`CREATE TABLE IF NOT EXISTS summary_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME, shift_date TEXT, activeCalls INTEGER,
-                agentsLoggedIn INTEGER, agentsInCalls INTEGER, callsWaiting INTEGER, dialLevel TEXT, dialableLeads INTEGER
-            )`);
-      db.run(`CREATE INDEX IF NOT EXISTS idx_summary_shift_date ON summary_log(shift_date)`);
+            // Insert summary statistics
+            if (data.summary) {
+                const summaryQuery = `
+                    INSERT INTO summary_stats (
+                        active_calls, agents_logged_in, agents_in_calls, calls_waiting,
+                        ringing_calls, ivr_calls, agents_paused, agents_waiting,
+                        agents_dispo, agents_dead, total_calls, dropped_percentage,
+                        dial_level, dialable_leads, shift_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `;
+                
+                const summaryParams = [
+                    data.summary.activeCalls || 0,
+                    data.summary.agentsLoggedIn || 0,
+                    data.summary.agentsInCalls || 0,
+                    data.summary.callsWaiting || 0,
+                    data.details?.ringingCalls || 0,
+                    data.details?.ivrCalls || 0,
+                    data.details?.agentsPaused || 0,
+                    data.details?.agentsWaiting || 0,
+                    data.details?.agentsDispo || 0,
+                    data.details?.agentsDead || 0,
+                    data.meta?.callsToday || 0,
+                    data.meta?.droppedAnswered || '0%',
+                    data.meta?.dialLevel,
+                    data.meta?.dialableLeads || 0,
+                    shiftDate
+                ];
+                
+                db.run(summaryQuery, summaryParams);
+            }
 
-      db.run(`CREATE TABLE IF NOT EXISTS agent_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME, shift_date TEXT, station TEXT, user_name TEXT, status TEXT,
-                status_duration_seconds INTEGER, vicidial_state_color TEXT, campaign TEXT, calls_today INTEGER
-            )`);
-      db.run(`CREATE INDEX IF NOT EXISTS idx_agent_shift_date ON agent_log(shift_date)`);
-      db.run(`CREATE INDEX IF NOT EXISTS idx_agent_user_shift ON agent_log(user_name, shift_date)`);
-      db.run(`CREATE INDEX IF NOT EXISTS idx_agent_color_shift ON agent_log(vicidial_state_color, shift_date)`);
+            // Insert agent logs
+            if (data.details && data.details.agents && Array.isArray(data.details.agents)) {
+                const agentQuery = `
+                    INSERT INTO agent_logs (
+                        station, user, session, status, time, state_color,
+                        pause_code, campaign, calls, agent_group, shift_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `;
+                
+                const agentStmt = db.prepare(agentQuery);
+                
+                for (const agent of data.details.agents) {
+                    agentStmt.run([
+                        agent.station || '',
+                        agent.user || '',
+                        agent.session || '',
+                        agent.status || '',
+                        agent.time || '',
+                        agent.stateColor || '',
+                        agent.pauseCode || '',
+                        agent.campaign || '',
+                        agent.calls || 0,
+                        agent.group || '',
+                        shiftDate
+                    ]);
+                }
+                
+                agentStmt.finalize();
+            }
 
-      db.run(`CREATE TABLE IF NOT EXISTS waiting_calls_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME, shift_date TEXT, campaign TEXT, dial_time_seconds INTEGER
-            )`);
-      db.run(`CREATE INDEX IF NOT EXISTS idx_waiting_shift_date ON waiting_calls_log(shift_date)`);
+            // Insert waiting calls
+            if (data.details && data.details.waitingCalls && Array.isArray(data.details.waitingCalls)) {
+                const callQuery = `
+                    INSERT INTO waiting_calls (
+                        phone, campaign, status, server, dial_time,
+                        call_type, priority, shift_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `;
+                
+                const callStmt = db.prepare(callQuery);
+                
+                for (const call of data.details.waitingCalls) {
+                    callStmt.run([
+                        call.phone || '',
+                        call.campaign || '',
+                        call.status || '',
+                        call.server || '',
+                        call.dialtime || '',
+                        call.callType || '',
+                        call.priority || 0,
+                        shiftDate
+                    ]);
+                }
+                
+                callStmt.finalize();
+            }
 
-      db.run(`CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY, value TEXT
-            )`, (err) => {
-                if (!err) {
-                    // Populate with default settings if table is new
-                    const stmt = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
-                    Object.entries(shiftSettings).forEach(([key, value]) => stmt.run(key, String(value)));
-                    stmt.finalize();
+            // Insert metadata
+            if (data.meta) {
+                const metaQuery = `
+                    INSERT INTO meta_data (
+                        dial_level, dialable_leads, calls_today, dropped_answered, shift_date
+                    ) VALUES (?, ?, ?, ?, ?)
+                `;
+                
+                const metaParams = [
+                    data.meta.dialLevel,
+                    data.meta.dialableLeads || 0,
+                    data.meta.callsToday || 0,
+                    data.meta.droppedAnswered || 0,
+                    shiftDate
+                ];
+                
+                db.run(metaQuery, metaParams);
+            }
+
+            db.run('COMMIT', (err) => {
+                if (err) {
+                    db.run('ROLLBACK');
+                    reject(err);
+                } else {
+                    console.log(`✅ Data saved to database for shift ${shiftDate}`);
+                    resolve({ success: true, shiftDate });
                 }
             });
-      resolve();
-    });
-  });
-}
-
-function loadSettings() {
-    return new Promise((resolve) => {
-        db.all("SELECT key, value FROM settings", [], (err, rows) => {
-            if (!err && rows.length) {
-                const loadedSettings = rows.reduce((acc, row) => ({...acc, [row.key]: row.value }), {});
-                shiftSettings = {
-                    ...shiftSettings,
-                    ...loadedSettings,
-                    SHIFT_START_HOUR: parseInt(loadedSettings.SHIFT_START_HOUR),
-                    SHIFT_START_MINUTE: parseInt(loadedSettings.SHIFT_START_MINUTE),
-                    SHIFT_END_HOUR: parseInt(loadedSettings.SHIFT_END_HOUR),
-                    SHIFT_END_MINUTE: parseInt(loadedSettings.SHIFT_END_MINUTE),
-                };
-                console.log("Shift settings loaded from database:", shiftSettings);
-            }
-            resolve();
         });
     });
+}
+
+/**
+ * Log data for debugging
+ */
+function logDataForDebugging(logEntry, timestamp) {
+    console.log('\n=== NEW DATA RECEIVED FROM EXTENSION ===');
+    console.log('Timestamp:', timestamp);
+    console.log('Raw Data:', JSON.stringify(logEntry, null, 2));
+    
+    // Log specific data types
+    if (logEntry.summary) {
+        console.log('\n--- SUMMARY DATA ---');
+        console.log('Active Calls:', logEntry.summary.activeCalls);
+        console.log('Agents Logged In:', logEntry.summary.agentsLoggedIn);
+        console.log('Agents In Calls:', logEntry.summary.agentsInCalls);
+        console.log('Calls Waiting:', logEntry.summary.callsWaiting);
+    }
+    
+    if (logEntry.details && logEntry.details.agents && logEntry.details.agents.length > 0) {
+        console.log('\n--- AGENT DETAILS ---');
+        console.log('Number of Agents:', logEntry.details.agents.length);
+        logEntry.details.agents.forEach((agent, index) => {
+            console.log(`Agent ${index + 1}:`, {
+                station: agent.station,
+                user: agent.user,
+                status: agent.status,
+                campaign: agent.campaign,
+                calls: agent.calls
+            });
+        });
+    }
+    
+    if (logEntry.details && logEntry.details.waitingCalls && logEntry.details.waitingCalls.length > 0) {
+        console.log('\n--- WAITING CALLS ---');
+        console.log('Number of Waiting Calls:', logEntry.details.waitingCalls.length);
+        logEntry.details.waitingCalls.forEach((call, index) => {
+            console.log(`Waiting Call ${index + 1}:`, {
+                campaign: call.campaign,
+                dialtime: call.dialtime
+            });
+        });
+    }
+    
+    if (logEntry.meta) {
+        console.log('\n--- METADATA ---');
+        console.log('Dial Level:', logEntry.meta.dialLevel);
+        console.log('Dialable Leads:', logEntry.meta.dialableLeads);
+    }
+    
+    console.log('=== END OF DATA ENTRY ===\n');
 }
 
 // --- API Endpoints ---
 
+/**
+ * Health check endpoint
+ */
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'healthy' });
+    res.json({ 
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        database: 'connected'
+    });
 });
 
-app.post('/api/logs', (req, res) => {
-  const data = req.body;
-  const timestamp = data.timestamp || new Date().toISOString();
-  const calculatedShiftDate = getShiftDate(timestamp);
-
-  const { summary = {}, details = { agents: [], waitingCalls: [] } } = data;
-
-  db.serialize(() => {
-    db.run('BEGIN TRANSACTION');
+/**
+ * Receive data from extension
+ */
+app.post('/api/logs', async (req, res) => {
+    const logEntry = req.body;
+    const timestamp = new Date().toISOString();
+    
     try {
-        const summaryStmt = db.prepare(`INSERT INTO summary_log (timestamp, shift_date, activeCalls, agentsLoggedIn, agentsInCalls, callsWaiting, dialLevel, dialableLeads) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
-        summaryStmt.run(timestamp, calculatedShiftDate, summary.activeCalls, summary.agentsLoggedIn, summary.agentsInCalls, summary.callsWaiting, data.meta?.dialLevel, data.meta?.dialableLeads);
-        summaryStmt.finalize();
-
-        const agentStmt = db.prepare(`INSERT INTO agent_log (timestamp, shift_date, station, user_name, status, status_duration_seconds, vicidial_state_color, campaign, calls_today) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        details.agents.forEach(agent => {
-            const durationParts = String(agent.time || '0:0').split(':');
-            const durationSeconds = parseInt(durationParts[0]) * 60 + parseInt(durationParts[1]);
-            agentStmt.run(timestamp, calculatedShiftDate, agent.station, agent.user, agent.status, durationSeconds, agent.stateColor, agent.campaign, agent.calls);
+        // Log for debugging
+        logDataForDebugging(logEntry, timestamp);
+        
+        // Save to database
+        const result = await saveExtensionData(logEntry);
+        
+        // Send success response
+        res.status(200).json({ 
+            success: true, 
+            message: 'Data saved to database',
+            timestamp,
+            shiftDate: result.shiftDate
         });
-        agentStmt.finalize();
-
-        const waitingStmt = db.prepare(`INSERT INTO waiting_calls_log (timestamp, shift_date, campaign, dial_time_seconds) VALUES (?, ?, ?, ?)`);
-        details.waitingCalls.forEach(call => {
-            const durationParts = String(call.dialtime || '0:0').split(':');
-            const durationSeconds = parseInt(durationParts[0]) * 60 + parseInt(durationParts[1]);
-            waitingStmt.run(timestamp, calculatedShiftDate, call.campaign, durationSeconds);
-        });
-        waitingStmt.finalize();
-
-        db.run('COMMIT');
-        res.json({ success: true });
+        
     } catch (error) {
-        db.run('ROLLBACK');
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ Error processing extension data:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to save data to database',
+            error: error.message
+        });
     }
-  });
 });
 
-app.get('/api/agent_log/by_shift/:shiftDate', (req, res) => {
-    const { shiftDate } = req.params;
-    db.all("SELECT * FROM agent_log WHERE shift_date = ? ORDER BY timestamp ASC", [shiftDate], (err, rows) => {
-        if (err) res.status(500).json({ success: false, error: err.message });
-        else res.json({ success: true, data: rows });
+/**
+ * Get latest summary for dashboard
+ */
+app.get('/api/summary/latest', (req, res) => {
+    const query = `
+        SELECT * FROM summary_stats 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+    `;
+    
+    db.get(query, [], (err, row) => {
+        if (err) {
+            console.error('❌ Error fetching latest summary:', err);
+            res.status(500).json({ 
+                success: false, 
+                error: err.message 
+            });
+        } else {
+            res.json({ 
+                success: true, 
+                data: row 
+            });
+        }
+    });
+});
+
+/**
+ * Get current agents for dashboard
+ */
+app.get('/api/agents/current', (req, res) => {
+    const query = `
+        SELECT * FROM agent_logs 
+        WHERE shift_date = DATE('now')
+        ORDER BY timestamp DESC
+        LIMIT 100
+    `;
+    
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('❌ Error fetching current agents:', err);
+            res.status(500).json({ 
+                success: false, 
+                error: err.message 
+            });
+        } else {
+            res.json({ 
+                success: true, 
+                data: rows 
+            });
+        }
+    });
+});
+
+/**
+ * Get waiting calls for dashboard
+ */
+app.get('/api/waiting-calls', (req, res) => {
+    const query = `
+        SELECT * FROM waiting_calls 
+        WHERE shift_date = DATE('now')
+        ORDER BY timestamp DESC
+        LIMIT 50
+    `;
+    
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('❌ Error fetching waiting calls:', err);
+            res.status(500).json({ 
+                success: false, 
+                error: err.message 
+            });
+        } else {
+            res.json({ 
+                success: true, 
+                data: rows 
+            });
+        }
     });
 });
 
 // --- Server Start ---
 async function startServer() {
-  try {
-    await initializeDatabase();
-    await loadSettings();
-    app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
+    try {
+        console.log('🚀 Starting Extension-to-Database Server...');
+        
+        // Initialize database
+        await initializeDatabase();
+        
+        const server = app.listen(PORT, () => {
+            console.log(`🌐 Server running on http://localhost:${PORT}`);
+            console.log('📊 Ready to receive data from extension');
+        });
+        
+        // Graceful shutdown
+        const gracefulShutdown = (signal) => {
+            console.log(`\n🔄 Received ${signal}. Closing database connection...`);
+            if (db) {
+                db.close((err) => {
+                    if (err) {
+                        console.error('Error closing database:', err);
+                    } else {
+                        console.log('✅ Database connection closed');
+                    }
+                    process.exit(0);
+                });
+            } else {
+                process.exit(0);
+            }
+        };
+        
+        process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+        process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+        
+    } catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
 }
 
+// Start the server
 startServer();
