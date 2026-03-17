@@ -170,91 +170,124 @@ function panelGateway({ state, session, rerender }) {
 }
 
 function panelShift({ shift }) {
-  return el('div', {}, [
-    el('div', { class: 'cardTitle' }, ['Shift timing (Gateway)']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Timezone offset (minutes)']),
-      el('input', { id: 'st_tz', type: 'number', value: String(shift.tzOffsetMinutes ?? 300) })
+  return el('div', { class: 'formCols' }, [
+    el('div', { class: 'formBlock' }, [
+      el('div', { class: 'formBlockTitle' }, ['Shift timing (Gateway)']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Timezone offset (minutes)']),
+        el('input', { id: 'st_tz', type: 'number', value: String(shift.tzOffsetMinutes ?? 300) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Shift start (HH:MM)']),
+        el('input', { id: 'st_shift_start', value: String(shift.start ?? '19:00') })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Shift end (HH:MM)']),
+        el('input', { id: 'st_shift_end', value: String(shift.end ?? '04:30') })
+      ])
     ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Shift start (HH:MM)']),
-      el('input', { id: 'st_shift_start', value: String(shift.start ?? '19:00') })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Shift end (HH:MM)']),
-      el('input', { id: 'st_shift_end', value: String(shift.end ?? '04:30') })
+    el('div', { class: 'formBlock' }, [
+      el('div', { class: 'formBlockTitle' }, ['How it’s used']),
+      el('div', { class: 'note' }, [
+        'These settings define how snapshots are bucketed into a shift date + local hour for analytics, reports, and alerts.'
+      ])
     ])
   ]);
 }
 
 function panelRetention({ retention }) {
-  return el('div', {}, [
-    el('div', { class: 'cardTitle' }, ['Retention (Gateway)']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Raw snapshots retention (days)']),
-      el('input', { id: 'st_ret_raw', type: 'number', value: String(retention.rawSnapshotsDays ?? 14) })
+  return el('div', { class: 'formCols' }, [
+    el('div', { class: 'formBlock' }, [
+      el('div', { class: 'formBlockTitle' }, ['Retention (Gateway)']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Raw snapshots retention (days)']),
+        el('input', { id: 'st_ret_raw', type: 'number', value: String(retention.rawSnapshotsDays ?? 14) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Bucket aggregates retention (days)']),
+        el('input', { id: 'st_ret_buckets', type: 'number', value: String(retention.bucketsDays ?? 60) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Alerts retention (days)']),
+        el('input', { id: 'st_ret_alerts', type: 'number', value: String(retention.alertsDays ?? 30) })
+      ])
     ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Bucket aggregates retention (days)']),
-      el('input', { id: 'st_ret_buckets', type: 'number', value: String(retention.bucketsDays ?? 60) })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Alerts retention (days)']),
-      el('input', { id: 'st_ret_alerts', type: 'number', value: String(retention.alertsDays ?? 30) })
+    el('div', { class: 'formBlock' }, [
+      el('div', { class: 'formBlockTitle' }, ['Notes']),
+      el('div', { class: 'note' }, [
+        'Raw snapshots can grow quickly. Buckets + hourly aggregates are smaller and power Shift Analytics. Alerts are kept separately.'
+      ])
     ])
   ]);
 }
 
 function panelAlerts({ alerts }) {
-  return el('div', {}, [
-    el('div', { class: 'cardTitle' }, ['Alerts (Gateway)']),
-    el('div', { class: 'note' }, ['Controls detection thresholds and dashboard notifications.']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Waiting spike max']),
-      el('input', { id: 'st_al_wait_max', type: 'number', value: String(alerts.waitingSpikeMax ?? 25) })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Waiting sustain (sec)']),
-      el('input', { id: 'st_al_wait_sus', type: 'number', value: String(alerts.waitingSpikeSustainSeconds ?? 120) })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Waiting cooldown (sec)']),
-      el('input', { id: 'st_al_wait_cd', type: 'number', value: String(alerts.waitingSpikeCooldownSeconds ?? 600) })
-    ]),
+  return el('div', { class: 'formCols' }, [
+    el('div', { class: 'formBlock' }, [
+      el('div', { class: 'formBlockTitle' }, ['Detectors (Gateway)']),
+      el('div', { class: 'note' }, ['Thresholds used during ingest to create alerts.']),
 
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Purple overload min']),
-      el('input', { id: 'st_al_purp_min', type: 'number', value: String(alerts.purpleOverloadMin ?? 8) })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Purple sustain (sec)']),
-      el('input', { id: 'st_al_purp_sus', type: 'number', value: String(alerts.purpleOverloadSustainSeconds ?? 180) })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Purple cooldown (sec)']),
-      el('input', { id: 'st_al_purp_cd', type: 'number', value: String(alerts.purpleOverloadCooldownSeconds ?? 900) })
-    ]),
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'formBlockTitle', style: 'font-size:12px;color:var(--muted);' }, ['Waiting spike']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Max waiting']),
+        el('input', { id: 'st_al_wait_max', type: 'number', value: String(alerts.waitingSpikeMax ?? 25) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Sustain (sec)']),
+        el('input', { id: 'st_al_wait_sus', type: 'number', value: String(alerts.waitingSpikeSustainSeconds ?? 120) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Cooldown (sec)']),
+        el('input', { id: 'st_al_wait_cd', type: 'number', value: String(alerts.waitingSpikeCooldownSeconds ?? 600) })
+      ]),
 
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Drop% min']),
-      el('input', { id: 'st_al_drop_min', type: 'number', value: String(alerts.dropPercentMin ?? 3) })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Drop% jump pts']),
-      el('input', { id: 'st_al_drop_jump', type: 'number', value: String(alerts.dropPercentJumpPoints ?? 2.5) })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Drop% cooldown (sec)']),
-      el('input', { id: 'st_al_drop_cd', type: 'number', value: String(alerts.dropPercentCooldownSeconds ?? 900) })
-    ]),
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'formBlockTitle', style: 'font-size:12px;color:var(--muted);' }, ['Purple overload']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Min purple agents']),
+        el('input', { id: 'st_al_purp_min', type: 'number', value: String(alerts.purpleOverloadMin ?? 8) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Sustain (sec)']),
+        el('input', { id: 'st_al_purp_sus', type: 'number', value: String(alerts.purpleOverloadSustainSeconds ?? 180) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Cooldown (sec)']),
+        el('input', { id: 'st_al_purp_cd', type: 'number', value: String(alerts.purpleOverloadCooldownSeconds ?? 900) })
+      ]),
 
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Dashboard toast']),
-      el('input', { id: 'st_al_toast', type: 'checkbox' })
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'formBlockTitle', style: 'font-size:12px;color:var(--muted);' }, ['Drop% jump']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Min drop%']),
+        el('input', { id: 'st_al_drop_min', type: 'number', value: String(alerts.dropPercentMin ?? 3) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Jump points']),
+        el('input', { id: 'st_al_drop_jump', type: 'number', value: String(alerts.dropPercentJumpPoints ?? 2.5) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Cooldown (sec)']),
+        el('input', { id: 'st_al_drop_cd', type: 'number', value: String(alerts.dropPercentCooldownSeconds ?? 900) })
+      ])
     ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Dashboard sound']),
-      el('input', { id: 'st_al_sound', type: 'checkbox' })
+    el('div', { class: 'formBlock' }, [
+      el('div', { class: 'formBlockTitle' }, ['Dashboard notifications']),
+      el('div', { class: 'note' }, ['Controls toast/sound when new alerts arrive over WebSocket.']),
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Toast']),
+        el('input', { id: 'st_al_toast', type: 'checkbox' })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Sound']),
+        el('input', { id: 'st_al_sound', type: 'checkbox' })
+      ]),
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'note' }, [
+        'Tip: Keep sound off for day-to-day ops; enable it only for critical shifts or wallboards.'
+      ])
     ])
   ]);
 }
@@ -265,102 +298,112 @@ function panelSlack({ state, notifications }) {
   const info = routes.info || {};
   const warn = routes.warn || {};
   const bad = routes.bad || {};
-  return el('div', {}, [
-    el('div', { class: 'cardTitle' }, ['Notifications → Slack (Gateway)']),
-    el('div', { class: 'note' }, ['Configure per-severity routing. Route fields fall back to the global webhook/channel if left blank.']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Enabled']),
-      el('input', { id: 'st_slack_enabled', type: 'checkbox' })
+  return el('div', { class: 'formCols' }, [
+    el('div', { class: 'formBlock' }, [
+      el('div', { class: 'formBlockTitle' }, ['Slack (Gateway)']),
+      el('div', { class: 'note' }, [
+        'Configure per-severity routing. Route fields fall back to the global webhook/channel if left blank.'
+      ]),
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Enabled']),
+        el('input', { id: 'st_slack_enabled', type: 'checkbox' })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Global Webhook URL']),
+        el('input', { id: 'st_slack_webhook', value: String(slack.webhookUrl || '') })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Global Channel (optional)']),
+        el('input', { id: 'st_slack_channel', value: String(slack.channel || '') })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Username']),
+        el('input', { id: 'st_slack_username', value: String(slack.username || 'Vici Monitor Pro') })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Cooldown (sec)']),
+        el('input', { id: 'st_slack_cd', type: 'number', value: String(slack.cooldownSeconds ?? 300) })
+      ]),
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'actions' }, [
+        el('button', {
+          class: 'btn',
+          onclick: async () => {
+            const msg = document.getElementById('st_admin_msg');
+            msg.textContent = 'Sending Slack test…';
+            const r = await testSlack(state.baseUrl, state.token, { severity: 'bad', message: 'Test BAD Slack message from Vicidial Monitor Pro' });
+            msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
+          }
+        }, ['Send BAD test']),
+        el('button', {
+          class: 'btn',
+          onclick: async () => {
+            const msg = document.getElementById('st_admin_msg');
+            msg.textContent = 'Sending Slack test…';
+            const r = await testSlack(state.baseUrl, state.token, { severity: 'warn', message: 'Test WARN Slack message from Vicidial Monitor Pro' });
+            msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
+          }
+        }, ['Send WARN test']),
+        el('button', {
+          class: 'btn',
+          onclick: async () => {
+            const msg = document.getElementById('st_admin_msg');
+            msg.textContent = 'Sending Slack test…';
+            const r = await testSlack(state.baseUrl, state.token, { severity: 'info', message: 'Test INFO Slack message from Vicidial Monitor Pro' });
+            msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
+          }
+        }, ['Send INFO test'])
+      ])
     ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Global Webhook URL']),
-      el('input', { id: 'st_slack_webhook', value: String(slack.webhookUrl || '') })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Global Channel (optional)']),
-      el('input', { id: 'st_slack_channel', value: String(slack.channel || '') })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Username']),
-      el('input', { id: 'st_slack_username', value: String(slack.username || 'Vici Monitor Pro') })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Cooldown (sec)']),
-      el('input', { id: 'st_slack_cd', type: 'number', value: String(slack.cooldownSeconds ?? 300) })
-    ]),
-    el('div', { class: 'divider' }, ['']),
-    el('div', { class: 'cardTitle' }, ['Routing']),
+    el('div', { class: 'formBlock' }, [
+      el('div', { class: 'formBlockTitle' }, ['Routing']),
+      el('div', { class: 'note' }, ['Choose which severities notify, and where they go.']),
+      el('div', { class: 'divider' }, ['']),
 
-    el('div', { class: 'note' }, ['Bad (critical) route']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Bad enabled']),
-      el('input', { id: 'st_slack_bad_enabled', type: 'checkbox' })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Bad webhook']),
-      el('input', { id: 'st_slack_bad_webhook', value: String(bad.webhookUrl || '') })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Bad channel']),
-      el('input', { id: 'st_slack_bad_channel', value: String(bad.channel || '') })
-    ]),
+      el('div', { class: 'formBlockTitle', style: 'font-size:12px;color:var(--muted);' }, ['Bad (critical)']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Enabled']),
+        el('input', { id: 'st_slack_bad_enabled', type: 'checkbox' })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Webhook (optional)']),
+        el('input', { id: 'st_slack_bad_webhook', value: String(bad.webhookUrl || '') })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Channel (optional)']),
+        el('input', { id: 'st_slack_bad_channel', value: String(bad.channel || '') })
+      ]),
 
-    el('div', { class: 'note' }, ['Warn route']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Warn enabled']),
-      el('input', { id: 'st_slack_warn_enabled', type: 'checkbox' })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Warn webhook']),
-      el('input', { id: 'st_slack_warn_webhook', value: String(warn.webhookUrl || '') })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Warn channel']),
-      el('input', { id: 'st_slack_warn_channel', value: String(warn.channel || '') })
-    ]),
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'formBlockTitle', style: 'font-size:12px;color:var(--muted);' }, ['Warn']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Enabled']),
+        el('input', { id: 'st_slack_warn_enabled', type: 'checkbox' })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Webhook (optional)']),
+        el('input', { id: 'st_slack_warn_webhook', value: String(warn.webhookUrl || '') })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Channel (optional)']),
+        el('input', { id: 'st_slack_warn_channel', value: String(warn.channel || '') })
+      ]),
 
-    el('div', { class: 'note' }, ['Info route']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Info enabled']),
-      el('input', { id: 'st_slack_info_enabled', type: 'checkbox' })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Info webhook']),
-      el('input', { id: 'st_slack_info_webhook', value: String(info.webhookUrl || '') })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Info channel']),
-      el('input', { id: 'st_slack_info_channel', value: String(info.channel || '') })
-    ]),
-
-    el('div', { class: 'actions' }, [
-      el('button', {
-        class: 'btn',
-        onclick: async () => {
-          const msg = document.getElementById('st_admin_msg');
-          msg.textContent = 'Sending Slack test…';
-          const r = await testSlack(state.baseUrl, state.token, { severity: 'bad', message: 'Test BAD Slack message from Vicidial Monitor Pro' });
-          msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
-        }
-      }, ['Send BAD test']),
-      el('button', {
-        class: 'btn',
-        onclick: async () => {
-          const msg = document.getElementById('st_admin_msg');
-          msg.textContent = 'Sending Slack test…';
-          const r = await testSlack(state.baseUrl, state.token, { severity: 'warn', message: 'Test WARN Slack message from Vicidial Monitor Pro' });
-          msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
-        }
-      }, ['Send WARN test']),
-      el('button', {
-        class: 'btn',
-        onclick: async () => {
-          const msg = document.getElementById('st_admin_msg');
-          msg.textContent = 'Sending Slack test…';
-          const r = await testSlack(state.baseUrl, state.token, { severity: 'info', message: 'Test INFO Slack message from Vicidial Monitor Pro' });
-          msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
-        }
-      }, ['Send INFO test'])
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'formBlockTitle', style: 'font-size:12px;color:var(--muted);' }, ['Info']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Enabled']),
+        el('input', { id: 'st_slack_info_enabled', type: 'checkbox' })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Webhook (optional)']),
+        el('input', { id: 'st_slack_info_webhook', value: String(info.webhookUrl || '') })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Channel (optional)']),
+        el('input', { id: 'st_slack_info_channel', value: String(info.channel || '') })
+      ])
     ])
   ]);
 }

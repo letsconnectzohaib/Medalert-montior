@@ -1,15 +1,5 @@
 import { normalizeBaseUrl } from '../apiClient.js';
-
-function el(tag, attrs = {}, children = []) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') node.className = v;
-    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
-    else node.setAttribute(k, String(v));
-  }
-  for (const c of children) node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
-  return node;
-}
+import { el } from '../ui/dom.js';
 
 async function api(state, path, opts = {}) {
   const base = normalizeBaseUrl(state.baseUrl);
@@ -29,8 +19,8 @@ async function api(state, path, opts = {}) {
 export function renderAdvancedDb(state) {
   const msg = el('div', { class: 'msg', id: 'adb_msg' }, ['']);
   const tablesSel = el('select', { id: 'adb_tables', class: 'select' }, []);
-  const infoPre = el('pre', { class: 'history', id: 'adb_info' }, ['Select a table to view schema.']);
-  const rowsPre = el('pre', { class: 'history', id: 'adb_rows' }, ['']);
+  const infoHost = el('div', { id: 'adb_info', class: 'tableWrap' }, ['Select a table to view schema.']);
+  const rowsHost = el('div', { id: 'adb_rows', class: 'tableWrap' }, ['']);
 
   const filterRow = el('div', { class: 'formRow' }, [
     el('label', {}, ['Filter']),
@@ -73,9 +63,9 @@ export function renderAdvancedDb(state) {
     if (!table) return;
     try {
       const data = await api(state, `/api/admin/db/table/${encodeURIComponent(table)}/info`);
-      infoPre.textContent = JSON.stringify(data.info, null, 2);
+      renderSchemaTable(infoHost, data.info);
     } catch (e) {
-      infoPre.textContent = e?.message || 'Failed to load table info.';
+      infoHost.textContent = e?.message || 'Failed to load table info.';
     }
   }
 
@@ -98,10 +88,14 @@ export function renderAdvancedDb(state) {
     try {
       msg.textContent = 'Loading rows…';
       const data = await api(state, `/api/admin/db/table/${encodeURIComponent(table)}/rows?${qs.toString()}`);
-      rowsPre.textContent = JSON.stringify({ count: data.count, limit: data.limit, offset: data.offset, rows: data.rows }, null, 2);
+      renderRowsTable(rowsHost, data.rows || [], {
+        count: data.count ?? (data.rows || []).length,
+        limit: data.limit ?? Number(limit),
+        offset: data.offset ?? Number(offset)
+      });
       msg.textContent = '';
     } catch (e) {
-      rowsPre.textContent = e?.message || 'Failed to load rows.';
+      rowsHost.textContent = e?.message || 'Failed to load rows.';
       msg.textContent = e?.message || 'Failed to load rows.';
     }
   }
@@ -118,8 +112,8 @@ export function renderAdvancedDb(state) {
         body: JSON.stringify({ nonce: prep.nonce, phrase })
       });
       msg.textContent = res.success ? 'Data cleared (tables kept).' : 'Clear failed.';
-      rowsPre.textContent = '';
-      infoPre.textContent = '';
+      rowsHost.textContent = '';
+      infoHost.textContent = '';
       await loadTables();
     } catch (e) {
       msg.textContent = e?.message || 'Clear failed.';
@@ -131,33 +125,92 @@ export function renderAdvancedDb(state) {
     await loadRows();
   });
 
-  const wrap = el('div', { class: 'grid' }, [
-    el('section', { class: 'card' }, [
-      el('div', { class: 'cardTitle' }, ['Database explorer']),
-      msg,
-      el('div', { class: 'formRow' }, [el('label', {}, ['Table']), tablesSel]),
-      filterRow,
-      limitRow,
-      el('div', { class: 'actions' }, [
-        el('button', { type: 'button', class: 'btn', onclick: loadRows }, ['Run query']),
-        el('button', { type: 'button', class: 'btn', onclick: loadTables }, ['Refresh tables'])
+  const wrap = el('section', { class: 'card wide' }, [
+    el('div', { class: 'cardTitle' }, ['Advanced → Database explorer']),
+    el('div', { class: 'note' }, ['Browse SQLite tables, inspect schema, and run safe filtered queries.']),
+    msg,
+    el('div', { class: 'formCols' }, [
+      el('div', { class: 'formBlock' }, [
+        el('div', { class: 'formBlockTitle' }, ['Query builder']),
+        el('div', { class: 'formRow' }, [el('label', {}, ['Table']), tablesSel]),
+        filterRow,
+        limitRow,
+        el('div', { class: 'actions' }, [
+          el('button', { type: 'button', class: 'btn primary', onclick: loadRows }, ['Run query']),
+          el('button', { type: 'button', class: 'btn', onclick: loadTables }, ['Refresh tables'])
+        ]),
+        el('div', { class: 'divider' }, ['']),
+        el('div', { class: 'formBlockTitle' }, ['Maintenance']),
+        el('div', { class: 'actions' }, [
+          el('button', { type: 'button', class: 'btn', onclick: clearDbFlow }, ['Clear DB data (safe)'])
+        ]),
+        el('div', { class: 'note' }, ['This clears rows only. No tables are dropped.'])
       ]),
-      el('div', { class: 'actions' }, [
-        el('button', { type: 'button', class: 'btn', onclick: clearDbFlow }, ['Clear DB data (safe)'])
-      ]),
-      el('div', { class: 'note' }, ['This is read-only browsing + safe clearing. No tables are dropped.'])
-    ]),
-    el('section', { class: 'card' }, [
-      el('div', { class: 'cardTitle' }, ['Table info']),
-      el('div', { class: 'historyWrap' }, [infoPre])
-    ]),
-    el('section', { class: 'card wide' }, [
-      el('div', { class: 'cardTitle' }, ['Rows']),
-      el('div', { class: 'historyWrap' }, [rowsPre])
+      el('div', { class: 'formBlock' }, [
+        el('div', { class: 'formBlockTitle' }, ['Table schema']),
+        infoHost,
+        el('div', { class: 'divider' }, ['']),
+        el('div', { class: 'formBlockTitle' }, ['Rows']),
+        rowsHost
+      ])
     ])
   ]);
 
   loadTables();
   return wrap;
+}
+
+function renderSchemaTable(host, info) {
+  if (!host) return;
+  const cols = Array.isArray(info?.columns) ? info.columns : [];
+  if (!cols.length) {
+    host.textContent = 'No schema info.';
+    return;
+  }
+
+  const table = el('table', {}, [
+    el('thead', {}, [
+      el('tr', {}, [el('th', {}, ['Column']), el('th', {}, ['Type']), el('th', {}, ['PK']), el('th', {}, ['Nullable']), el('th', {}, ['Default'])])
+    ]),
+    el(
+      'tbody',
+      {},
+      cols.map((c) =>
+        el('tr', {}, [
+          el('td', {}, [String(c.name ?? '—')]),
+          el('td', {}, [String(c.type ?? '—')]),
+          el('td', {}, [String(c.pk ? 'yes' : '')]),
+          el('td', {}, [String(c.notnull ? 'no' : 'yes')]),
+          el('td', {}, [String(c.dflt_value ?? '')])
+        ])
+      )
+    )
+  ]);
+  host.replaceChildren(table);
+}
+
+function renderRowsTable(host, rows, meta) {
+  if (!host) return;
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) {
+    host.textContent = 'No rows matched.';
+    return;
+  }
+
+  const keys = Object.keys(list[0] || {});
+  const headerNote = el('div', { class: 'note' }, [
+    `Rows: ${meta?.count ?? list.length} • limit=${meta?.limit ?? list.length} • offset=${meta?.offset ?? 0}`
+  ]);
+
+  const table = el('table', {}, [
+    el('thead', {}, [el('tr', {}, keys.map((k) => el('th', {}, [k])))]),
+    el(
+      'tbody',
+      {},
+      list.map((r) => el('tr', {}, keys.map((k) => el('td', {}, [String(r?.[k] ?? '')]))))
+    )
+  ]);
+
+  host.replaceChildren(headerNote, table);
 }
 

@@ -43,6 +43,16 @@ select.inputLike{width:100%;border:1px solid var(--border);background:rgba(255,2
 .metric .k{color:var(--muted);font-size:12px}
 .metric .v{font-weight:900;font-size:20px;margin-top:6px}
 
+.kpiGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.metaGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kv{border:1px solid var(--border);border-radius:12px;padding:10px;background:rgba(255,255,255,.02)}
+.kv .k{color:var(--muted);font-size:12px}
+.kv .v{font-weight:800;font-size:14px;margin-top:6px;word-break:break-word}
+
+.formCols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.formBlock{border:1px solid var(--border);border-radius:12px;padding:12px;background:rgba(255,255,255,.02)}
+.formBlockTitle{font-weight:800;margin-bottom:10px}
+
 .buckets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .bucket{border:1px solid var(--border);border-radius:12px;padding:10px;background:rgba(255,255,255,.02)}
 .bucket .k{color:var(--muted);font-size:12px}
@@ -51,10 +61,19 @@ select.inputLike{width:100%;border:1px solid var(--border);background:rgba(255,2
 .historyWrap{border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.25);padding:10px;max-height:260px;overflow:auto}
 .history{margin:0;color:var(--muted);font-size:12px;white-space:pre-wrap}
 
+.tableWrap{border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.20);padding:10px;max-height:60vh;overflow:auto}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 10px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:800;font-size:12px;position:sticky;top:0;background:rgba(15,17,21,.92);backdrop-filter:blur(6px)}
+tr:hover td{background:rgba(255,255,255,.02)}
+
 @media (max-width: 960px){
   .grid{grid-template-columns:1fr}
   .summary{grid-template-columns:repeat(2,1fr)}
+  .kpiGrid{grid-template-columns:repeat(2,1fr)}
+  .metaGrid{grid-template-columns:1fr}
   .buckets{grid-template-columns:repeat(2,1fr)}
+  .formCols{grid-template-columns:1fr}
 }
 
 /* --- Pro app shell --- */
@@ -63,8 +82,9 @@ select.inputLike{width:100%;border:1px solid var(--border);background:rgba(255,2
   grid-template-columns: 240px 1fr;
   gap: 14px;
   padding: 14px;
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 .sidebar{
   border: 1px solid var(--border);
@@ -98,6 +118,7 @@ select.inputLike{width:100%;border:1px solid var(--border);background:rgba(255,2
 .sbFooter{margin-top:auto;color:var(--muted);font-size:12px;display:flex;flex-direction:column;gap:8px}
 .content{
   min-height: calc(100vh - 28px);
+  width: 100%;
 }
 .pageHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
 .pageTitle{font-weight:900;font-size:18px}

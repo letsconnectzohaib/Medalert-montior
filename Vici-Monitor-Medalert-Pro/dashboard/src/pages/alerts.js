@@ -45,33 +45,47 @@ export function renderAlerts(state) {
   const section = el('section', { class: 'card wide' }, [
     el('div', { class: 'cardTitle' }, ['Alerts']),
     el('div', { class: 'note' }, ['Anomalies detected from live snapshots (waiting spikes, purple overload, drop% jumps).']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Shift date']),
-      el('input', { id: 'al_date', type: 'date', value: today })
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Status']),
-      select('al_status', [
-        ['open', 'Open'],
-        ['acked', 'Acked'],
-        ['resolved', 'Resolved'],
-        ['all', 'All']
-      ], 'open')
-    ]),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Severity']),
-      select('al_sev', [
-        ['all', 'All'],
-        ['bad', 'Bad'],
-        ['warn', 'Warn'],
-        ['info', 'Info']
-      ], 'all')
-    ]),
-    el('div', { class: 'actions' }, [
-      el('button', { class: 'btn primary', onclick: async () => refresh(state) }, ['Refresh'])
-    ]),
-    el('div', { id: 'al_msg', class: 'msg' }, ['']),
-    el('div', { id: 'al_list', class: 'historyWrap' }, ['Loading…'])
+    el('div', { class: 'formCols' }, [
+      el('div', { class: 'formBlock' }, [
+        el('div', { class: 'formBlockTitle' }, ['Filters']),
+        el('div', { class: 'formRow' }, [
+          el('label', {}, ['Shift date']),
+          el('input', { id: 'al_date', type: 'date', value: today })
+        ]),
+        el('div', { class: 'formRow' }, [
+          el('label', {}, ['Status']),
+          select(
+            'al_status',
+            [
+              ['open', 'Open'],
+              ['acked', 'Acked'],
+              ['resolved', 'Resolved'],
+              ['all', 'All']
+            ],
+            'open'
+          )
+        ]),
+        el('div', { class: 'formRow' }, [
+          el('label', {}, ['Severity']),
+          select(
+            'al_sev',
+            [
+              ['all', 'All'],
+              ['bad', 'Bad'],
+              ['warn', 'Warn'],
+              ['info', 'Info']
+            ],
+            'all'
+          )
+        ]),
+        el('div', { class: 'actions' }, [el('button', { class: 'btn primary', onclick: async () => refresh(state) }, ['Refresh'])]),
+        el('div', { id: 'al_msg', class: 'msg' }, [''])
+      ]),
+      el('div', { class: 'formBlock' }, [
+        el('div', { class: 'formBlockTitle' }, ['Results']),
+        el('div', { id: 'al_list', class: 'tableWrap' }, ['Loading…'])
+      ])
+    ])
   ]);
 
   setTimeout(() => refresh(state), 0);

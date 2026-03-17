@@ -14,38 +14,50 @@ function el(tag, attrs = {}, children = []) {
 export function renderShiftAnalytics(state) {
   const wrap = el('section', { class: 'card wide' }, [
     el('div', { class: 'cardTitle' }, ['Shift summary']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Shift date']),
-      el('input', { id: 'shiftDate', type: 'date', value: new Date().toISOString().slice(0, 10) })
-    ]),
-    el('div', { class: 'actions' }, [
-      el('button', {
-        class: 'btn primary',
-        onclick: async () => {
-          const date = document.getElementById('shiftDate').value;
-          const [r, c] = await Promise.all([
-            fetchShiftIntelligence(state.baseUrl, state.token, date),
-            fetchShiftCallflow(state.baseUrl, state.token, date)
-          ]);
-          const msg = document.getElementById('shiftMsg');
-          const out = document.getElementById('shiftOut');
-          if (!r.success || !c.success) {
-            msg.textContent = !r.success ? r.error || 'Failed to load shift summary.' : c.error || 'Failed to load callflow.';
-            out.textContent = '';
-            return;
-          }
-          // Cache the loaded intelligence so live snapshot updates don't clear it.
-          state.shiftIntelCache = { date, data: r.data, callflow: c.data };
-          renderIntelIntoDom(r.data, c.data);
-          msg.textContent = buildMsg(r.data, c.data);
-          out.textContent = formatHours(r.data.series || {}, r.data.shiftHours || []);
-        }
-      }, ['Load summary'])
+    el('div', { class: 'formCols' }, [
+      el('div', { class: 'formBlock' }, [
+        el('div', { class: 'formBlockTitle' }, ['Controls']),
+        el('div', { class: 'formRow' }, [
+          el('label', {}, ['Shift date']),
+          el('input', { id: 'shiftDate', type: 'date', value: new Date().toISOString().slice(0, 10) })
+        ]),
+        el('div', { class: 'actions' }, [
+          el('button', {
+            class: 'btn primary',
+            onclick: async () => {
+              const date = document.getElementById('shiftDate').value;
+              const [r, c] = await Promise.all([
+                fetchShiftIntelligence(state.baseUrl, state.token, date),
+                fetchShiftCallflow(state.baseUrl, state.token, date)
+              ]);
+              const msg = document.getElementById('shiftMsg');
+              if (!r.success || !c.success) {
+                msg.textContent = !r.success ? r.error || 'Failed to load shift summary.' : c.error || 'Failed to load callflow.';
+                renderHourlyIntoDom(null);
+                return;
+              }
+              // Cache the loaded intelligence so live snapshot updates don't clear it.
+              state.shiftIntelCache = { date, data: r.data, callflow: c.data };
+              renderIntelIntoDom(r.data, c.data);
+              msg.textContent = buildMsg(r.data, c.data);
+              renderHourlyIntoDom(r.data);
+              renderDebugIntoDom(r.data);
+            }
+          }, ['Load summary'])
+        ])
+      ]),
+      el('div', { class: 'formBlock' }, [
+        el('div', { class: 'formBlockTitle' }, ['What you’re seeing']),
+        el('div', { class: 'note' }, [
+          'This page is DB-driven (hourly aggregates). Live snapshots continue in the background without forcing page refresh.'
+        ])
+      ])
     ]),
     el('div', { id: 'shiftMsg', class: 'msg' }, ['']),
     el('div', { class: 'historyWrap' }, [
       el('div', { id: 'shiftIntel', class: 'shiftIntel' }, ['']),
-      el('pre', { id: 'shiftOut', class: 'history' }, [''])
+      el('div', { id: 'shiftHourly', class: 'tableWrap' }, ['Load a shift to see hourly table…']),
+      el('div', { id: 'shiftDebug', class: 'note' }, [''])
     ])
   ]);
 
@@ -54,11 +66,11 @@ export function renderShiftAnalytics(state) {
     const { data, callflow } = state.shiftIntelCache;
     setTimeout(() => {
       const msg = document.getElementById('shiftMsg');
-      const out = document.getElementById('shiftOut');
-      if (!msg || !out) return;
+      if (!msg) return;
       renderIntelIntoDom(data, callflow);
       msg.textContent = buildMsg(data, callflow);
-      out.textContent = formatHours(data.series || {}, data.shiftHours || []);
+      renderHourlyIntoDom(data);
+      renderDebugIntoDom(data);
     }, 0);
   }
 
@@ -93,6 +105,72 @@ function renderIntelIntoDom(data, callflow) {
   host.appendChild(chart);
   if (cfCards) host.appendChild(cfCards);
   if (cfChart) host.appendChild(cfChart);
+}
+
+function renderHourlyIntoDom(data) {
+  const host = document.getElementById('shiftHourly');
+  if (!host) return;
+  if (!data?.series || !data?.shiftHours?.length) {
+    host.textContent = 'No hourly buckets yet.';
+    return;
+  }
+
+  const series = data.series || {};
+  const hours = data.shiftHours || [];
+
+  const table = el('table', {}, [
+    el('thead', {}, [
+      el('tr', {}, [
+        el('th', {}, ['Hour']),
+        el('th', {}, ['Purple']),
+        el('th', {}, ['Violet']),
+        el('th', {}, ['Blue']),
+        el('th', {}, ['In-call']),
+        el('th', {}, ['Ready']),
+        el('th', {}, ['Total'])
+      ])
+    ]),
+    el(
+      'tbody',
+      {},
+      hours.map((h) => {
+        const row = series?.[h] || {};
+        const purple = Number(row.oncall_gt_5m || 0);
+        const violet = Number(row.oncall_gt_1m || 0);
+        const blue = Number(row.waiting_gt_1m || 0);
+        const inCall = Number(row.in_call || 0);
+        const ready = Number(row.ready || 0);
+        const total = Object.values(row).reduce((a, b) => a + Number(b || 0), 0);
+        return el('tr', {}, [
+          el('td', {}, [fmtHour(h)]),
+          el('td', {}, [String(purple)]),
+          el('td', {}, [String(violet)]),
+          el('td', {}, [String(blue)]),
+          el('td', {}, [String(inCall)]),
+          el('td', {}, [String(ready)]),
+          el('td', {}, [String(total)])
+        ]);
+      })
+    )
+  ]);
+
+  host.replaceChildren(table);
+}
+
+function renderDebugIntoDom(data) {
+  const host = document.getElementById('shiftDebug');
+  if (!host) return;
+  if (!data?.series) {
+    host.textContent = '';
+    return;
+  }
+
+  const txt = formatHours(data.series || {}, data.shiftHours || []);
+  const details = el('details', {}, [
+    el('summary', { class: 'note', style: 'cursor:pointer;user-select:none;' }, ['Debug text (hourly buckets)']),
+    el('pre', { class: 'history' }, [txt])
+  ]);
+  host.replaceChildren(details);
 }
 
 function statCard(title, roll) {

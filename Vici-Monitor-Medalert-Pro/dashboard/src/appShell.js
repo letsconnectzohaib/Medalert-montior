@@ -1,6 +1,6 @@
 import { loadSession, saveSession, clearSession, savePage } from './storage.js';
 import { login as apiLogin, pingGateway, wsUrl, normalizeBaseUrl, getAdminSettings } from './apiClient.js';
-import { renderOverview } from './pages/overview.js';
+import { renderOverview, patchOverviewDom } from './pages/overview.js';
 import { renderShiftAnalytics } from './pages/shiftAnalytics.js';
 import { renderReports } from './pages/reports.js';
 import { renderAlerts } from './pages/alerts.js';
@@ -126,7 +126,8 @@ export function createApp(root) {
         // Only update badges, and if user is on Overview update overview widgets.
         updateBadges();
         if (state.page === 'overview') {
-          renderPage(); // re-render overview to show new numbers
+          const patched = patchOverviewDom(state);
+          if (!patched) renderPage(); // first render or after navigation
         }
       }
       if (msg.type === 'alert' && msg.alert) {
@@ -302,6 +303,13 @@ export function createApp(root) {
   }
 
   function renderPage() {
+    // Debug: set localStorage.VM_DEBUG_RENDER = "1" to log page renders.
+    try {
+      if (localStorage.getItem('VM_DEBUG_RENDER') === '1') {
+        // eslint-disable-next-line no-console
+        console.debug('[vm] renderPage', { page: state.page, ws: state.wsStatus, ts: new Date().toISOString() });
+      }
+    } catch {}
     ensureShell();
     updateNavActive();
 
@@ -333,11 +341,17 @@ export function createApp(root) {
     if (state.page === 'shift') dom.pageContainer.appendChild(renderShiftAnalytics(state));
     if (state.page === 'reports') dom.pageContainer.appendChild(renderReports(state));
     if (state.page === 'alerts') dom.pageContainer.appendChild(renderAlerts(state));
-    if (state.page === 'settings') dom.pageContainer.appendChild(renderSettings(state, () => {
-      // after settings change we may have updated baseUrl/WS; refresh nav+badges
-      updateNavActive();
-      updateBadges();
-    }));
+    if (state.page === 'settings')
+      dom.pageContainer.appendChild(
+        renderSettings(state, () => {
+          // Settings tabs + local gateway URL changes must rerender the page.
+          // Also ensure WS reconnects if baseUrl changed.
+          connectWs();
+          renderPage();
+          updateBadges();
+          updateNavActive();
+        })
+      );
     if (state.page === 'advanced') dom.pageContainer.appendChild(renderAdvancedDb(state));
   }
 

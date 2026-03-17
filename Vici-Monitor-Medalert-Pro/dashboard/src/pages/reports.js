@@ -87,67 +87,74 @@ export function renderReports(state) {
   const section = el('section', { class: 'card wide' }, [
     el('div', { class: 'cardTitle' }, ['Reports']),
     el('div', { class: 'note' }, ['Generate a printable shift report (HTML). PDF export can be added next.']),
-    el('div', { class: 'formRow' }, [
-      el('label', {}, ['Shift date']),
-      el('input', { id: 'rp_date', type: 'date', value: today })
-    ]),
-    el('div', { class: 'actions' }, [
-      el('button', {
-        class: 'btn primary',
-        onclick: async () => {
-          const date = document.getElementById('rp_date').value;
-          const msg = document.getElementById('rp_msg');
-          msg.textContent = 'Generating…';
-          const r = await fetchShiftReportHtml(state.baseUrl, state.token, date);
-          if (!r.success) {
-            msg.textContent = `Failed: ${r.error}`;
-            return;
-          }
-          const ok = openHtmlInNewTab(r.html);
-          msg.textContent = ok ? 'Opened in new tab.' : 'Popup blocked. Use Download instead.';
-        }
-      }, ['Open report']),
-      el('button', {
-        class: 'btn',
-        onclick: async () => {
-          const date = document.getElementById('rp_date').value;
-          const msg = document.getElementById('rp_msg');
-          msg.textContent = 'Generating & storing…';
-          const r = await generateAndStore(state.baseUrl, state.token, date);
-          if (!r.success) {
-            msg.textContent = `Failed: ${r.error}`;
-            return;
-          }
-          msg.textContent = `Stored report #${r.report?.id || '—'}. Refreshing list…`;
-          await refreshList(state);
-          msg.textContent = 'Stored and refreshed.';
-        }
-      }, ['Generate & store']),
-      el('button', {
-        class: 'btn',
-        onclick: async () => {
-          const date = document.getElementById('rp_date').value;
-          const msg = document.getElementById('rp_msg');
-          msg.textContent = 'Generating…';
-          const r = await fetchShiftReportHtml(state.baseUrl, state.token, date);
-          if (!r.success) {
-            msg.textContent = `Failed: ${r.error}`;
-            return;
-          }
-          downloadHtml(`shift_report_${date}.html`, r.html);
-          msg.textContent = 'Downloaded.';
-        }
-      }, ['Download HTML'])
+    el('div', { class: 'formCols' }, [
+      el('div', { class: 'formBlock' }, [
+        el('div', { class: 'formBlockTitle' }, ['Generate']),
+        el('div', { class: 'formRow' }, [
+          el('label', {}, ['Shift date']),
+          el('input', { id: 'rp_date', type: 'date', value: today })
+        ]),
+        el('div', { class: 'actions' }, [
+          el('button', {
+            class: 'btn primary',
+            onclick: async () => {
+              const date = document.getElementById('rp_date').value;
+              const msg = document.getElementById('rp_msg');
+              msg.textContent = 'Generating…';
+              const r = await fetchShiftReportHtml(state.baseUrl, state.token, date);
+              if (!r.success) {
+                msg.textContent = `Failed: ${r.error}`;
+                return;
+              }
+              const ok = openHtmlInNewTab(r.html);
+              msg.textContent = ok ? 'Opened in new tab.' : 'Popup blocked. Use Download instead.';
+            }
+          }, ['Open report']),
+          el('button', {
+            class: 'btn',
+            onclick: async () => {
+              const date = document.getElementById('rp_date').value;
+              const msg = document.getElementById('rp_msg');
+              msg.textContent = 'Generating & storing…';
+              const r = await generateAndStore(state.baseUrl, state.token, date);
+              if (!r.success) {
+                msg.textContent = `Failed: ${r.error}`;
+                return;
+              }
+              msg.textContent = `Stored report #${r.report?.id || '—'}. Refreshing list…`;
+              await refreshList(state);
+              msg.textContent = 'Stored and refreshed.';
+            }
+          }, ['Generate & store']),
+          el('button', {
+            class: 'btn',
+            onclick: async () => {
+              const date = document.getElementById('rp_date').value;
+              const msg = document.getElementById('rp_msg');
+              msg.textContent = 'Generating…';
+              const r = await fetchShiftReportHtml(state.baseUrl, state.token, date);
+              if (!r.success) {
+                msg.textContent = `Failed: ${r.error}`;
+                return;
+              }
+              downloadHtml(`shift_report_${date}.html`, r.html);
+              msg.textContent = 'Downloaded.';
+            }
+          }, ['Download HTML'])
+        ])
+      ]),
+      el('div', { class: 'formBlock' }, [
+        el('div', { class: 'formBlockTitle' }, ['History']),
+        el('div', { class: 'note' }, ['Stored reports generated on-demand or via scheduler.']),
+        el('div', { class: 'actions' }, [
+          el('button', { class: 'btn', onclick: async () => refreshList(state) }, ['Refresh list'])
+        ]),
+        el('div', { id: 'rp_hist_msg', class: 'msg' }, ['']),
+        el('div', { id: 'rp_hist', class: 'tableWrap' }, ['Loading…'])
+      ])
     ]),
     el('div', { id: 'rp_msg', class: 'msg' }, ['']),
-    el('div', { class: 'divider' }, ['']),
-    el('div', { class: 'cardTitle' }, ['History']),
-    el('div', { class: 'note' }, ['Stored reports generated on-demand or via scheduler.']),
-    el('div', { class: 'actions' }, [
-      el('button', { class: 'btn', onclick: async () => refreshList(state) }, ['Refresh list'])
-    ]),
-    el('div', { id: 'rp_hist_msg', class: 'msg' }, ['']),
-    el('div', { id: 'rp_hist', class: 'historyWrap' }, ['Loading…'])
+    el('div', { class: 'divider' }, [''])
   ]);
 
   setTimeout(() => refreshList(state), 0);
