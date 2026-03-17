@@ -19,9 +19,11 @@ body {
   color: var(--text);
   font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   width: 360px;
+  height: 560px;
+  overflow: hidden;
 }
 
-.app { padding: 12px; }
+.app { padding: 12px; padding-bottom: 56px; height: 560px; }
 .header { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .brand { font-weight: 700; font-size: 13px; }
 .subtitle { color: var(--muted); font-size: 11px; }
@@ -38,7 +40,9 @@ body {
 .badge-warn { color: var(--warn); border-color: rgba(255, 176, 32, 0.35); }
 .badge-bad { color: var(--bad); border-color: rgba(255, 77, 79, 0.35); }
 
-.main { display: flex; flex-direction: column; gap: 10px; }
+.main { display: flex; flex-direction: column; gap: 10px; height: calc(560px - 12px - 12px - 56px - 48px); }
+.tabView { display: flex; flex-direction: column; gap: 10px; }
+.hidden { display: none !important; }
 .card {
   border: 1px solid var(--border);
   background: linear-gradient(180deg, var(--panel), var(--panel2));
@@ -50,6 +54,14 @@ body {
 .row { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: center; margin: 6px 0; }
 label { color: var(--muted); }
 input {
+  width: 100%;
+  border-radius: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+}
+.select{
   width: 100%;
   border-radius: 8px;
   padding: 7px 8px;
@@ -76,7 +88,97 @@ input {
 .v { color: var(--text); }
 .note { margin-top: 8px; color: var(--muted); font-size: 11px; }
 
-.footer { margin-top: 10px; display: flex; justify-content: flex-end; }
-.footer a { color: var(--muted); text-decoration: none; }
-.footer a:hover { color: var(--text); }
+.screen{
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.authCard{
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: radial-gradient(120% 120% at 0% 0%, rgba(76,141,255,0.20), rgba(255,255,255,0.02) 55%), linear-gradient(180deg, var(--panel), var(--panel2));
+}
+.authTitle{ font-weight: 900; font-size: 16px; letter-spacing: 0.2px; }
+.authSub{ color: var(--muted); margin-top: 4px; margin-bottom: 12px; font-size: 12px; }
+.authMeta{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.authMetaKey{ color: var(--muted); }
+.authMetaVal{ color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linkBtn{
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.splash{
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 14px;
+  background: linear-gradient(180deg, var(--panel), var(--panel2));
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.splashDot{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 6px rgba(76,141,255,0.18);
+  animation: pulse 1.2s infinite ease-in-out;
+}
+.splashTitle{ font-weight: 900; font-size: 14px; }
+.splashSub{ color: var(--muted); font-size: 12px; }
+@keyframes pulse{
+  0%{ transform: scale(0.95); opacity: 0.9; }
+  50%{ transform: scale(1.05); opacity: 1; }
+  100%{ transform: scale(0.95); opacity: 0.9; }
+}
+
+.aboutLine{ display:flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.aboutLine:last-child{ border-bottom: none; }
+.aboutKey{ color: var(--muted); }
+.aboutVal{ color: var(--text); font-weight: 600; }
+
+.bottomNav{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(15,17,21,0.95);
+  border-top: 1px solid var(--border);
+}
+.navBtn{
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  padding: 10px 10px;
+  cursor: pointer;
+}
+.navActive{
+  color: var(--text);
+  border-color: rgba(76, 141, 255, 0.35);
+  background: rgba(76, 141, 255, 0.14);
+}
 

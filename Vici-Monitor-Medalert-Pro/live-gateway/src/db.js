@@ -1,39 +1,61 @@
 const path = require('path');
-const Database = require('better-sqlite3');
+const fs = require('fs');
 
-const DB_PATH = process.env.SHIFT_DB_PATH ||
-  path.join(__dirname, '..', 'data', 'vici_shift.db');
+// Pure JS SQLite (WASM) to avoid native build tooling on Windows.
+// This removes the need for Visual Studio C++ during `npm install`.
+const initSqlJs = require('sql.js');
 
+const DB_PATH =
+  process.env.SHIFT_DB_PATH || path.join(__dirname, '..', 'data', 'vici_shift.sqlite');
+
+let SQL;
 let db;
+let isInitialized = false;
 
-function getDb() {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS raw_snapshots (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ts TEXT NOT NULL,
-        shift_date TEXT NOT NULL,
-        payload_json TEXT NOT NULL
-      );
+async function initDb() {
+  if (isInitialized) return;
+  SQL = await initSqlJs();
 
-      CREATE TABLE IF NOT EXISTS shift_buckets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        shift_date TEXT NOT NULL,
-        hour INTEGER NOT NULL,
-        state_bucket TEXT NOT NULL,
-        agent_count INTEGER NOT NULL DEFAULT 0
-      );
+  const dir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-      CREATE INDEX IF NOT EXISTS idx_raw_shift_date_ts
-        ON raw_snapshots (shift_date, ts);
-
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_bucket_key
-        ON shift_buckets (shift_date, hour, state_bucket);
-    `);
+  if (fs.existsSync(DB_PATH)) {
+    const fileBuf = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(new Uint8Array(fileBuf));
+  } else {
+    db = new SQL.Database();
   }
-  return db;
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS raw_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT NOT NULL,
+      shift_date TEXT NOT NULL,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS shift_buckets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_date TEXT NOT NULL,
+      hour INTEGER NOT NULL,
+      state_bucket TEXT NOT NULL,
+      agent_count INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_raw_shift_date_ts
+      ON raw_snapshots (shift_date, ts);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_bucket_key
+      ON shift_buckets (shift_date, hour, state_bucket);
+  `);
+
+  isInitialized = true;
+}
+
+function persist() {
+  if (!db) return;
+  const data = db.export();
+  fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
 
 function computeShiftDate(tsIso) {
@@ -50,32 +72,34 @@ function computeShiftDate(tsIso) {
 }
 
 function upsertBucket(shiftDate, hour, stateBucket, count) {
-  const db = getDb();
-  const stmt = db.prepare(`
-    INSERT INTO shift_buckets (shift_date, hour, state_bucket, agent_count)
-    VALUES (@shift_date, @hour, @state_bucket, @agent_count)
-    ON CONFLICT(shift_date, hour, state_bucket)
-    DO UPDATE SET agent_count = excluded.agent_count;
-  `);
-  stmt.run({
-    shift_date: shiftDate,
-    hour,
-    state_bucket: stateBucket,
-    agent_count: count
-  });
+  // sql.js doesn't support ON CONFLICT in all builds reliably; do a simple upsert.
+  db.run(
+    `UPDATE shift_buckets
+     SET agent_count = ?
+     WHERE shift_date = ? AND hour = ? AND state_bucket = ?`,
+    [count, shiftDate, hour, stateBucket]
+  );
+  const changes = db.getRowsModified();
+  if (changes === 0) {
+    db.run(
+      `INSERT INTO shift_buckets (shift_date, hour, state_bucket, agent_count)
+       VALUES (?, ?, ?, ?)`,
+      [shiftDate, hour, stateBucket, count]
+    );
+  }
 }
 
-function storeSnapshot(snapshot) {
-  const db = getDb();
+async function storeSnapshot(snapshot) {
+  await initDb();
   const ts = snapshot.timestamp || new Date().toISOString();
   const shiftDate = computeShiftDate(ts);
   const hour = new Date(ts).getHours();
 
-  const insertRaw = db.prepare(`
-    INSERT INTO raw_snapshots (ts, shift_date, payload_json)
-    VALUES (?, ?, ?)
-  `);
-  insertRaw.run(ts, shiftDate, JSON.stringify(snapshot));
+  db.run(
+    `INSERT INTO raw_snapshots (ts, shift_date, payload_json)
+     VALUES (?, ?, ?)`,
+    [ts, shiftDate, JSON.stringify(snapshot)]
+  );
 
   const agents = Array.isArray(snapshot.agents) ? snapshot.agents : [];
   const counts = {};
@@ -84,44 +108,60 @@ function storeSnapshot(snapshot) {
     counts[b] = (counts[b] || 0) + 1;
   }
 
-  db.transaction(() => {
+  db.run('BEGIN');
+  try {
     for (const [bucket, count] of Object.entries(counts)) {
       upsertBucket(shiftDate, hour, bucket, count);
     }
-  })();
+    db.run('COMMIT');
+  } catch (e) {
+    db.run('ROLLBACK');
+    throw e;
+  } finally {
+    persist();
+  }
 
   return { ts, shiftDate, hour, counts };
 }
 
-function getShiftSummary(shiftDate) {
-  const db = getDb();
-  const rows = db.prepare(
+async function getShiftSummary(shiftDate) {
+  await initDb();
+  const stmt = db.prepare(
     `SELECT hour, state_bucket, agent_count
      FROM shift_buckets
      WHERE shift_date = ?
      ORDER BY hour ASC`
-  ).all(shiftDate);
-
+  );
+  stmt.bind([shiftDate]);
   const hours = {};
-  for (const r of rows) {
-    if (!hours[r.hour]) hours[r.hour] = {};
-    hours[r.hour][r.state_bucket] = r.agent_count;
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    const hour = Number(row.hour);
+    if (!hours[hour]) hours[hour] = {};
+    hours[hour][row.state_bucket] = Number(row.agent_count);
   }
+  stmt.free();
   return hours;
 }
 
-function getPeakHour(shiftDate) {
-  const db = getDb();
-  const row = db.prepare(
-    `SELECT hour,
-            SUM(agent_count) AS total_agents
+async function getPeakHour(shiftDate) {
+  await initDb();
+  const stmt = db.prepare(
+    `SELECT hour, SUM(agent_count) AS total_agents
      FROM shift_buckets
      WHERE shift_date = ?
      GROUP BY hour
      ORDER BY total_agents DESC
      LIMIT 1`
-  ).get(shiftDate);
-  return row || null;
+  );
+  stmt.bind([shiftDate]);
+  let result = null;
+  if (stmt.step()) {
+    const row = stmt.getAsObject();
+    result = { hour: Number(row.hour), total_agents: Number(row.total_agents) };
+  }
+  stmt.free();
+  return result;
 }
 
 module.exports = {

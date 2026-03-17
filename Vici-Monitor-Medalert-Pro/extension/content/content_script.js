@@ -219,4 +219,55 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return false;
 });
 
+// --- On-change streaming (preferred) ---
+let throttleHandle = null;
+let lastPayloadSig = '';
+
+function scheduleEmit(throttleMs) {
+  if (throttleHandle) return;
+  throttleHandle = setTimeout(async () => {
+    throttleHandle = null;
+    try {
+      const snapshot = buildSnapshot();
+      const sig = JSON.stringify({
+        summary: snapshot.summary,
+        meta: snapshot.meta,
+        agents: snapshot.agents?.map((a) => [a.user, a.stateBucket, a.mmss, a.status, a.pauseCode]),
+        waiting: snapshot.waitingCalls?.map((c) => [c.phone, c.status, c.dialTime])
+      });
+      if (sig === lastPayloadSig) return;
+      lastPayloadSig = sig;
+      chrome.runtime.sendMessage({ type: 'pro_snapshot', snapshot }, () => {
+        // ignore errors when extension is reloading
+      });
+    } catch {
+      // swallow; manual scrape still works
+    }
+  }, Math.max(250, Number(throttleMs) || 1500));
+}
+
+async function getScrapeConfig() {
+  const data = await chrome.storage.local.get(['scrape']);
+  const scrape = data.scrape || {};
+  return {
+    mode: scrape.mode || 'onChange',
+    throttleMs: scrape.throttleMs ?? 1500,
+    pollMs: scrape.pollMs ?? 60000
+  };
+}
+
+async function startStreaming() {
+  const cfg = await getScrapeConfig();
+  if (cfg.mode !== 'onChange') return;
+
+  const target = document.querySelector('table[width="860"]') || document.body;
+  const observer = new MutationObserver(() => scheduleEmit(cfg.throttleMs));
+  observer.observe(target, { childList: true, subtree: true, characterData: true });
+
+  // Emit one snapshot immediately.
+  scheduleEmit(cfg.throttleMs);
+}
+
+startStreaming();
+
 

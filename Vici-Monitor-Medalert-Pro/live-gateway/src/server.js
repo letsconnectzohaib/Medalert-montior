@@ -61,14 +61,18 @@ app.get('/api/auth/me', (req, res) => {
 
 // Extension publishes snapshots over HTTP (Phase 1).
 // Gateways/dashboards can also consume via WS.
-app.post('/api/live/snapshot', (req, res) => {
+app.post('/api/live/snapshot', async (req, res) => {
   const user = verifyBearerToken(req);
   if (!user) return res.status(401).json({ success: false });
   const snapshot = req.body?.snapshot;
   if (!snapshot) return res.status(400).json({ success: false, error: 'missing_snapshot' });
 
   latestSnapshot = snapshot;
-  storeSnapshot(snapshot);
+  try {
+    await storeSnapshot(snapshot);
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e?.message || 'db_write_failed' });
+  }
 
   for (const client of wss.clients) {
     if (client.isSubscribed) safeSend(client, { type: 'snapshot', snapshot: latestSnapshot });
@@ -79,10 +83,10 @@ app.post('/api/live/snapshot', (req, res) => {
 
 // --- Shift analytics ---
 
-app.get('/api/shift/summary', (req, res) => {
+app.get('/api/shift/summary', async (req, res) => {
   const date = req.query.date || computeShiftDate(new Date().toISOString());
-  const hours = getShiftSummary(date);
-  const peak = getPeakHour(date);
+  const hours = await getShiftSummary(date);
+  const peak = await getPeakHour(date);
 
   res.json({
     success: true,

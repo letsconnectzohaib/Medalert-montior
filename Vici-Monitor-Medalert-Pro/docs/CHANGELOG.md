@@ -11,6 +11,9 @@
   - HTTP ingest endpoint for snapshots (`POST /api/live/snapshot`)
   - WebSocket `/ws` for `subscribe` and `publish`
   - in-memory latest snapshot broadcast (no persistence yet by design)
+- Implemented **Shift persistence (Phase 1)**:
+  - Uses `sql.js` (pure JS/WASM SQLite) so Windows installs do not require Visual Studio build tools
+  - Stores `raw_snapshots` and `shift_buckets` in `live-gateway/data/vici_shift.sqlite`
 - Implemented **Extension Pro (Phase 1)**:
   - MV3 popup: login-only UI + gateway status + last snapshot
   - Options page: configure gateway base URL + test connection

@@ -20,40 +20,117 @@
       </header>
 
       <main class="main">
-        <section id="login" class="card">
-          <div class="card-title">Login</div>
-          <div class="row">
-            <label>Username</label>
-            <input id="username" type="text" autocomplete="username" />
+        <!-- Auth gate screens -->
+        <section id="screen-login" class="screen">
+          <div class="authCard">
+            <div class="authTitle">Welcome back</div>
+            <div class="authSub">Sign in to start live monitoring.</div>
+
+            <div class="row">
+              <label>Username</label>
+              <input id="username" type="text" autocomplete="username" placeholder="admin" />
+            </div>
+            <div class="row">
+              <label>Password</label>
+              <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+            </div>
+
+            <div class="actions">
+              <button id="login-btn" class="btn btn-primary">Sign in</button>
+            </div>
+            <div id="login-msg" class="msg"></div>
+
+            <div class="authMeta">
+              <span class="authMetaKey">Gateway</span>
+              <span class="authMetaVal" id="login-gateway">http://localhost:3100</span>
+              <button id="go-settings-from-login" class="linkBtn">Edit</button>
+            </div>
           </div>
-          <div class="row">
-            <label>Password</label>
-            <input id="password" type="password" autocomplete="current-password" />
-          </div>
-          <div class="actions">
-            <button id="login-btn" class="btn btn-primary">Sign in</button>
-            <button id="logout-btn" class="btn" disabled>Sign out</button>
-          </div>
-          <div id="login-msg" class="msg"></div>
         </section>
 
-        <section class="card">
-          <div class="card-title">Live</div>
-          <div class="kv">
-            <div class="k">Scraper</div>
-            <div class="v" id="scraper-state">Not started</div>
-            <div class="k">Last snapshot</div>
-            <div class="v" id="last-snapshot">—</div>
+        <section id="screen-splash" class="screen hidden">
+          <div class="splash">
+            <div class="splashDot"></div>
+            <div class="splashTitle">Loading dashboard…</div>
+            <div class="splashSub">Preparing live stream</div>
           </div>
-          <div class="note">
-            For DOM scraping, the Vicidial realtime report page must be open in at least one tab.
-          </div>
+        </section>
+
+        <!-- Dashboard tab -->
+        <section id="tab-dashboard" class="tabView hidden">
+          <section class="card">
+            <div class="card-title">Live</div>
+            <div class="kv">
+              <div class="k">Scraper</div>
+              <div class="v" id="scraper-state">Not started</div>
+              <div class="k">Last snapshot</div>
+              <div class="v" id="last-snapshot">—</div>
+              <div class="k">Last error</div>
+              <div class="v" id="last-error">—</div>
+            </div>
+            <div class="actions" style="margin-top: 10px;">
+              <button id="scrape-now-btn" class="btn">Scrape now</button>
+              <button id="logout-btn" class="btn">Sign out</button>
+            </div>
+            <div class="note">
+              For DOM scraping, the Vicidial realtime report page must be open in at least one tab.
+            </div>
+          </section>
+        </section>
+
+        <!-- Settings tab -->
+        <section id="tab-settings" class="tabView hidden">
+          <section class="card">
+            <div class="card-title">Settings</div>
+            <div class="row">
+              <label>Gateway URL</label>
+              <input id="gateway-url" type="text" placeholder="http://localhost:3100" />
+            </div>
+            <div class="row">
+              <label>Mode</label>
+              <select id="scrape-mode" class="select">
+                <option value="onChange">On change (recommended)</option>
+                <option value="poll">Polling (fallback)</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>Throttle (ms)</label>
+              <input id="throttle-ms" type="number" min="250" step="250" />
+            </div>
+            <div class="row">
+              <label>Poll (ms)</label>
+              <input id="poll-ms" type="number" min="1000" step="1000" />
+            </div>
+            <div class="actions">
+              <button id="save-settings-btn" class="btn">Save settings</button>
+            </div>
+            <div class="note">
+              Tip: Vicidial “Screen Refresh Rate” (often 4s) will naturally drive “On change” snapshots.
+            </div>
+          </section>
+        </section>
+
+        <!-- About tab -->
+        <section id="tab-about" class="tabView hidden">
+          <section class="card">
+            <div class="card-title">About</div>
+            <div class="aboutLine"><span class="aboutKey">Version</span><span class="aboutVal">0.1.0</span></div>
+            <div class="aboutLine"><span class="aboutKey">Mode</span><span class="aboutVal">Live Gateway + Snapshot stream</span></div>
+            <div class="note">
+              Pro is built around a scraping contract and a normalized snapshot schema so shift analytics (purple/blue peaks) can be reliable.
+            </div>
+            <div class="actions" style="margin-top: 10px;">
+              <button id="open-options" class="btn">Advanced</button>
+            </div>
+          </section>
         </section>
       </main>
 
-      <footer class="footer">
-        <a href="#" id="open-options">Settings</a>
-      </footer>
+      <nav class="bottomNav hidden" id="bottom-nav">
+        <button class="navBtn navActive" id="nav-dashboard">Dashboard</button>
+        <button class="navBtn" id="nav-settings">Settings</button>
+        <button class="navBtn" id="nav-about">About</button>
+      </nav>
     </div>
     <script type="module" src="popup.js"></script>
   </body>

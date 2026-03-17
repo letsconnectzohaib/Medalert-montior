@@ -1,17 +1,25 @@
 const DEFAULTS = {
   gatewayBaseUrl: 'http://localhost:3100',
   auth: null,
+  scrape: {
+    // Primary mode: emit snapshot when DOM changes (page refresh rate drives it, e.g. 4s).
+    mode: 'onChange', // 'onChange' | 'poll'
+    throttleMs: 1500,
+    pollMs: 60000
+  },
   runtime: {
     scraperState: 'Not started',
-    lastSnapshotAt: null
+    lastSnapshotAt: null,
+    lastError: null
   }
 };
 
 export async function getSettings() {
-  const data = await chrome.storage.local.get(['gatewayBaseUrl', 'auth', 'runtime']);
+  const data = await chrome.storage.local.get(['gatewayBaseUrl', 'auth', 'scrape', 'runtime']);
   return {
     gatewayBaseUrl: data.gatewayBaseUrl || DEFAULTS.gatewayBaseUrl,
     auth: data.auth || DEFAULTS.auth,
+    scrape: { ...DEFAULTS.scrape, ...(data.scrape || {}) },
     runtime: data.runtime || DEFAULTS.runtime
   };
 }
@@ -21,6 +29,7 @@ export async function setSettings(partial) {
   const next = {
     ...current,
     ...partial,
+    scrape: { ...(current.scrape || {}), ...(partial.scrape || {}) },
     runtime: { ...(current.runtime || {}), ...(partial.runtime || {}) }
   };
   await chrome.storage.local.set(next);

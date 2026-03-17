@@ -8,7 +8,7 @@
     "default_popup": "popup/popup.html"
   },
   "options_page": "options/options.html",
-  "permissions": ["storage", "alarms", "tabs"],
+  "permissions": ["storage", "alarms", "tabs", "scripting"],
   "host_permissions": [
     "http://localhost:3100/*",
     "https://*/realtime_report.php*",

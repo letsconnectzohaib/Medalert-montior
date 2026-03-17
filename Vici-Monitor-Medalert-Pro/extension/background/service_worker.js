@@ -16,7 +16,25 @@ async function findVicidialTabs() {
 }
 
 async function requestScrapeFromTab(tabId) {
-  return await chrome.tabs.sendMessage(tabId, { type: 'pro_scrape_now' });
+  try {
+    return await chrome.tabs.sendMessage(tabId, { type: 'pro_scrape_now' });
+  } catch (e) {
+    // Most common on MV3 reload: content script not injected yet.
+    // Try to inject and retry once.
+    const msg = String(e?.message || '');
+    if (msg.toLowerCase().includes('receiving end does not exist')) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content/content_script.js']
+        });
+        return await chrome.tabs.sendMessage(tabId, { type: 'pro_scrape_now' });
+      } catch (e2) {
+        return { success: false, error: e2?.message || 'inject_failed' };
+      }
+    }
+    return { success: false, error: e?.message || 'sendMessage_failed' };
+  }
 }
 
 async function publishToGateway(baseUrl, token, snapshot) {
@@ -32,45 +50,65 @@ async function publishToGateway(baseUrl, token, snapshot) {
   if (!res.ok) {
     return { success: false, error: `publish_failed_http_${res.status}` };
   }
-  await setSettings({ runtime: { lastSnapshotAt: nowIso() } });
+  await setSettings({ runtime: { lastSnapshotAt: nowIso(), lastError: null } });
   return { success: true };
 }
 
-async function tick() {
+async function tick(reason = 'alarm') {
   const settings = await getSettings();
   const authed = !!settings.auth?.token;
 
   const tabs = await findVicidialTabs();
   if (!authed) {
     await setSettings({
-      runtime: { scraperState: tabs.length ? 'Signed out (Vicidial tab found)' : 'Signed out (no Vicidial tab)' }
+      runtime: {
+        scraperState: tabs.length ? 'Signed out (Vicidial tab found)' : 'Signed out (no Vicidial tab)',
+        lastError: null
+      }
     });
     return;
   }
 
   if (!tabs.length) {
-    await setSettings({ runtime: { scraperState: 'Waiting for Vicidial tab…' } });
+    await setSettings({ runtime: { scraperState: 'Waiting for Vicidial tab…', lastError: null } });
     return;
   }
 
-  await setSettings({ runtime: { scraperState: `Scraping (${tabs.length} tab${tabs.length === 1 ? '' : 's'})…` } });
+  await setSettings({
+    runtime: { scraperState: `Scraping (${tabs.length} tab${tabs.length === 1 ? '' : 's'})…`, lastError: null }
+  });
+
+  let scraped = 0;
+  let published = 0;
 
   for (const tab of tabs) {
     try {
       const res = await requestScrapeFromTab(tab.id);
       if (res?.success && res.snapshot) {
+        scraped += 1;
         const pub = await publishToGateway(settings.gatewayBaseUrl, settings.auth.token, res.snapshot);
         if (!pub.success) {
-          await setSettings({ runtime: { scraperState: `Publish failed (${pub.error || 'unknown'})` } });
+          await setSettings({
+            runtime: { scraperState: `Publish failed (${pub.error || 'unknown'})`, lastError: pub.error || 'publish_failed' }
+          });
           break;
         }
+        published += 1;
+      } else {
+        await setSettings({
+          runtime: { scraperState: `Scrape returned no snapshot (${reason})`, lastError: res?.error || 'no_snapshot' }
+        });
       }
-    } catch {
-      // ignore single-tab failures; we'll try again next tick
+    } catch (e) {
+      await setSettings({ runtime: { scraperState: `Scrape failed (${reason})`, lastError: e?.message || 'scrape_failed' } });
     }
   }
 
-  await setSettings({ runtime: { scraperState: 'Idle (last scrape ok)' } });
+  if (published > 0) {
+    await setSettings({ runtime: { scraperState: `Idle (published ${published}/${scraped})`, lastError: null } });
+  } else if (scraped > 0) {
+    await setSettings({ runtime: { scraperState: `Idle (scraped ${scraped}, published 0)`, lastError: 'publish_failed_or_skipped' } });
+  }
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -85,5 +123,24 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'pro_tick') tick();
+});
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'pro_tick_now') {
+    tick('manual')
+      .then(() => sendResponse({ success: true }))
+      .catch((e) => sendResponse({ success: false, error: e?.message || 'tick_failed' }));
+    return true;
+  }
+  if (msg?.type === 'pro_snapshot') {
+    (async () => {
+      const settings = await getSettings();
+      if (!settings.auth?.token) return sendResponse({ success: false, error: 'signed_out' });
+      const pub = await publishToGateway(settings.gatewayBaseUrl, settings.auth.token, msg.snapshot);
+      sendResponse(pub);
+    })().catch((e) => sendResponse({ success: false, error: e?.message || 'publish_failed' }));
+    return true;
+  }
+  return false;
 });
 
