@@ -1,0 +1,19 @@
+Vici-Monitor-Medalert-Pro/
+  README.md
+  docs/
+    architecture/
+      structure.txt              (this file)
+    scraping/
+      contract.md               (Vicidial scraping contract)
+    api/
+      live-gateway.routes.txt   (WS + REST routes; auth; payloads)
+  shared/
+    schema/
+      vicidialSnapshot.schema.json
+  extension/
+    (MV3 extension sources; modular scraping + auth + UI)
+  live-gateway/
+    (Node server: login + WS broadcast + optional persistence later)
+  dashboard/
+    (React app consuming live WS stream)
+

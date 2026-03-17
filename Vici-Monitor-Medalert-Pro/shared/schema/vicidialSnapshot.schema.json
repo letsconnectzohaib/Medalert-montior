@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vici-monitor.local/schemas/vicidialSnapshot.schema.json",
+  "title": "VicidialSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["timestamp", "source", "summary", "meta", "agents", "waitingCalls"],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "pageUrl"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["vicidial_realtime_report"] },
+        "pageUrl": { "type": "string" },
+        "scrapeVersion": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "activeCalls",
+        "ringingCalls",
+        "callsWaiting",
+        "callsInIvr",
+        "agentsLoggedIn",
+        "agentsInCalls",
+        "agentsWaiting",
+        "agentsPaused",
+        "agentsDead",
+        "agentsDispo"
+      ],
+      "properties": {
+        "activeCalls": { "type": "integer", "minimum": 0 },
+        "ringingCalls": { "type": "integer", "minimum": 0 },
+        "callsWaiting": { "type": "integer", "minimum": 0 },
+        "callsInIvr": { "type": "integer", "minimum": 0 },
+        "agentsLoggedIn": { "type": "integer", "minimum": 0 },
+        "agentsInCalls": { "type": "integer", "minimum": 0 },
+        "agentsWaiting": { "type": "integer", "minimum": 0 },
+        "agentsPaused": { "type": "integer", "minimum": 0 },
+        "agentsDead": { "type": "integer", "minimum": 0 },
+        "agentsDispo": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dialLevel", "dialableLeads", "callsToday", "droppedAnswered", "droppedPercent", "reportTime"],
+      "properties": {
+        "dialLevel": { "type": "number" },
+        "dialableLeads": { "type": "integer", "minimum": 0 },
+        "callsToday": { "type": "integer", "minimum": 0 },
+        "avgAgents": { "type": "number" },
+        "dialMethod": { "type": "string" },
+        "droppedAnswered": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dropped", "answered"],
+          "properties": {
+            "dropped": { "type": "number", "minimum": 0 },
+            "answered": { "type": "number", "minimum": 0 }
+          }
+        },
+        "droppedPercent": { "type": "number", "minimum": 0 },
+        "reportTime": { "type": "string" }
+      }
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["station", "user", "name", "userGroup", "sessionId", "status", "mmss", "campaign", "calls", "stateColorClass", "stateBucket"],
+        "properties": {
+          "station": { "type": "string" },
+          "user": { "type": "string" },
+          "name": { "type": "string" },
+          "userGroup": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "statusCode": { "type": "string" },
+          "status": { "type": "string" },
+          "pauseCode": { "type": "string" },
+          "serverIp": { "type": "string" },
+          "callServerIp": { "type": "string" },
+          "mmss": { "type": "string" },
+          "campaign": { "type": "string" },
+          "listId": { "type": "string" },
+          "listName": { "type": "string" },
+          "calls": { "type": "number", "minimum": 0 },
+          "hold": { "type": "string" },
+          "inGroup": { "type": "string" },
+          "stateColorClass": { "type": "string" },
+          "stateBucket": {
+            "type": "string",
+            "enum": [
+              "chatting",
+              "email",
+              "waiting_lt_1m",
+              "waiting_gt_1m",
+              "waiting_gt_5m",
+              "oncall_gt_10s",
+              "oncall_gt_1m",
+              "oncall_gt_5m",
+              "paused_gt_10s",
+              "paused_gt_1m",
+              "paused_gt_5m",
+              "threeway_gt_10s",
+              "deadcall",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    "waitingCalls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "campaign", "phone", "serverIp", "dialTime", "callType", "priority"],
+        "properties": {
+          "status": { "type": "string" },
+          "campaign": { "type": "string" },
+          "phone": { "type": "string" },
+          "serverIp": { "type": "string" },
+          "dialTime": { "type": "string" },
+          "callType": { "type": "string" },
+          "priority": { "type": "number" }
+        }
+      }
+    }
+  }
+}
+
