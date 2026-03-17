@@ -1,7 +1,9 @@
 import { loadSession, saveSession, clearSession, savePage } from './storage.js';
-import { login as apiLogin, pingGateway, wsUrl, normalizeBaseUrl } from './apiClient.js';
+import { login as apiLogin, pingGateway, wsUrl, normalizeBaseUrl, getAdminSettings } from './apiClient.js';
 import { renderOverview } from './pages/overview.js';
 import { renderShiftAnalytics } from './pages/shiftAnalytics.js';
+import { renderReports } from './pages/reports.js';
+import { renderAlerts } from './pages/alerts.js';
 import { renderSettings } from './pages/settings.js';
 import { renderAdvancedDb } from './pages/advancedDb.js';
 
@@ -48,6 +50,38 @@ export function createApp(root) {
     pageDesc: null
   };
 
+  function beep(kind = 'warn') {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = kind === 'bad' ? 660 : 440;
+      g.gain.value = 0.05;
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      setTimeout(() => {
+        o.stop();
+        ctx.close();
+      }, 140);
+    } catch {
+      // ignore audio errors
+    }
+  }
+
+  function toast(text, kind = 'warn') {
+    const host = dom.shell?.querySelector('#toastHost');
+    if (!host) return;
+    const t = el('div', { class: `toast ${kind}` }, [text]);
+    host.appendChild(t);
+    setTimeout(() => t.classList.add('show'), 10);
+    setTimeout(() => {
+      t.classList.remove('show');
+      setTimeout(() => t.remove(), 250);
+    }, 3500);
+  }
+
   function setPage(p) {
     state.page = p;
     savePage(p);
@@ -60,7 +94,7 @@ export function createApp(root) {
 
   function getPageFromUrl() {
     const h = String(window.location.hash || '').replace(/^#/, '').trim();
-    if (h === 'overview' || h === 'shift' || h === 'settings' || h === 'advanced') return h;
+    if (h === 'overview' || h === 'shift' || h === 'reports' || h === 'alerts' || h === 'settings' || h === 'advanced') return h;
     return null;
   }
 
@@ -94,6 +128,13 @@ export function createApp(root) {
         if (state.page === 'overview') {
           renderPage(); // re-render overview to show new numbers
         }
+      }
+      if (msg.type === 'alert' && msg.alert) {
+        updateBadges();
+        const a = msg.alert;
+        const cfg = state.adminSettingsCache?.alerts || {};
+        if (cfg.notifyToast) toast(`${a.title || 'Alert'}`, a.severity || 'warn');
+        if (cfg.notifySound) beep(a.severity || 'warn');
       }
       if (msg.type === 'error' && msg.error === 'unauthorized') {
         state.wsStatus = 'unauthorized';
@@ -129,6 +170,12 @@ export function createApp(root) {
     state.page = getPageFromUrl() || s.page || 'overview';
     savePage(state.page);
     if (state.token) connectWs();
+    if (state.token) {
+      try {
+        const r = await getAdminSettings(state.baseUrl, state.token);
+        if (r.success) state.adminSettingsCache = r.settings || {};
+      } catch {}
+    }
   }
 
   async function renderLogin() {
@@ -186,6 +233,8 @@ export function createApp(root) {
     dom.sidebarNav = el('div', { class: 'sbNav' }, [
       el('button', { id: 'nav_overview', type: 'button', class: 'sbLink', onclick: () => setPage('overview') }, ['Overview']),
       el('button', { id: 'nav_shift', type: 'button', class: 'sbLink', onclick: () => setPage('shift') }, ['Shift analytics']),
+      el('button', { id: 'nav_reports', type: 'button', class: 'sbLink', onclick: () => setPage('reports') }, ['Reports']),
+      el('button', { id: 'nav_alerts', type: 'button', class: 'sbLink', onclick: () => setPage('alerts') }, ['Alerts']),
       el('button', { id: 'nav_settings', type: 'button', class: 'sbLink', onclick: () => setPage('settings') }, ['Settings']),
       el('button', { id: 'nav_advanced', type: 'button', class: 'sbLink', onclick: () => setPage('advanced') }, ['Advanced'])
     ]);
@@ -214,6 +263,8 @@ export function createApp(root) {
     dom.content = el('main', { class: 'content' }, [header, dom.pageContainer]);
 
     dom.shell = el('div', { class: 'shell' }, [sidebar, dom.content]);
+    const toastHost = el('div', { id: 'toastHost', class: 'toastHost' }, []);
+    dom.shell.appendChild(toastHost);
     root.replaceChildren(dom.shell);
   }
 
@@ -225,6 +276,10 @@ export function createApp(root) {
         ? 'nav_overview'
         : state.page === 'shift'
           ? 'nav_shift'
+          : state.page === 'reports'
+            ? 'nav_reports'
+            : state.page === 'alerts'
+              ? 'nav_alerts'
           : state.page === 'settings'
             ? 'nav_settings'
             : 'nav_advanced';
@@ -250,12 +305,25 @@ export function createApp(root) {
     ensureShell();
     updateNavActive();
 
-    dom.pageTitle.textContent = state.page === 'overview' ? 'Overview' : state.page === 'shift' ? 'Shift analytics' : 'Settings';
+    dom.pageTitle.textContent =
+      state.page === 'overview'
+        ? 'Overview'
+        : state.page === 'shift'
+          ? 'Shift analytics'
+          : state.page === 'reports'
+            ? 'Reports'
+            : state.page === 'alerts'
+              ? 'Alerts'
+            : 'Settings';
     dom.pageDesc.textContent =
       state.page === 'overview'
         ? 'Live operations from streaming snapshots.'
         : state.page === 'shift'
           ? 'DB-driven hourly buckets, peak hour, and purple/blue distributions.'
+          : state.page === 'reports'
+            ? 'Generate printable shift reports and exports.'
+            : state.page === 'alerts'
+              ? 'Detected anomalies and operational alerts.'
           : state.page === 'settings'
             ? 'Configure shift timings, persistence, and capture behavior.'
             : 'Inspect database tables, explore raw snapshots, and perform safe maintenance actions.';
@@ -263,6 +331,8 @@ export function createApp(root) {
     dom.pageContainer.replaceChildren();
     if (state.page === 'overview') dom.pageContainer.appendChild(renderOverview(state));
     if (state.page === 'shift') dom.pageContainer.appendChild(renderShiftAnalytics(state));
+    if (state.page === 'reports') dom.pageContainer.appendChild(renderReports(state));
+    if (state.page === 'alerts') dom.pageContainer.appendChild(renderAlerts(state));
     if (state.page === 'settings') dom.pageContainer.appendChild(renderSettings(state, () => {
       // after settings change we may have updated baseUrl/WS; refresh nav+badges
       updateNavActive();

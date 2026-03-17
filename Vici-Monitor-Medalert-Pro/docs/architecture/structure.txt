@@ -13,7 +13,22 @@ Vici-Monitor-Medalert-Pro/
   extension/
     (MV3 extension sources; modular scraping + auth + UI)
   live-gateway/
-    (Node server: login + WS broadcast + optional persistence later)
+    (Node server: login + WS broadcast + persistence + shift analytics)
+    src/
+      server.js                  (bootstrap; wires routes + WS)
+      db.js                      (compat re-export; real DB code in src/db/*)
+      db/
+        core.js                  (sql.js init + schema + persist)
+        settings.js              (gateway settings)
+        retention.js             (cleanup)
+        snapshots.js             (storeSnapshot orchestration)
+        buckets.js               (agent bucket aggregates)
+        callflow.js              (call-flow aggregates)
+        adminExplorer.js         (DB explorer helpers + safe clear)
+      routes/                    (REST route modules)
+      ws/                        (WebSocket modules)
+      middleware/                (auth middleware)
+      lib/                       (shared math helpers)
   dashboard/
     (React app consuming live WS stream)
 

@@ -73,12 +73,42 @@ REST
          ]
        }
 
+  GET  /api/reports/shift?date=YYYY-MM-DD
+    headers: Authorization: Bearer <jwt>
+    -> (HTML) Printable shift report (KPIs + hourly tables + rollups)
+
+  POST /api/reports/shift/generate
+    headers: Authorization: Bearer <jwt>
+    body: { "date": "YYYY-MM-DD" }
+    -> { success: true, report: { id, created_at, shift_date, kind, format, file_path } }
+
+  GET  /api/reports?kind=shift&limit=50
+    headers: Authorization: Bearer <jwt>
+    -> { success: true, reports: [ { id, created_at, shift_date, kind, format, file_path }, ... ] }
+
+  GET  /api/reports/:id/download
+    headers: Authorization: Bearer <jwt>
+    -> (file download) Stored report
+
+  GET  /api/reports/shift.pdf
+    headers: Authorization: Bearer <jwt>
+    -> 501 { success:false, error:"pdf_not_enabled" }
+
+  GET  /api/alerts?shiftDate=YYYY-MM-DD&status=open&severity=warn&limit=200
+    headers: Authorization: Bearer <jwt>
+    -> { success: true, alerts: [ { id, ts, shift_date, type, severity, title, details, status, acked_at, resolved_at }, ... ] }
+
+  POST /api/alerts/:id/action
+    headers: Authorization: Bearer <jwt>
+    body: { "action": "ack" | "resolve" | "reopen" }
+    -> { success: true }
+
 Admin / Settings (auth required)
   GET  /api/admin/settings
-    -> { success: true, settings: { shift: {...}, retention: {...} } }
+    -> { success: true, settings: { shift: {...}, retention: {...}, alerts: {...} } }
 
   PUT  /api/admin/settings
-    body: { settings: { shift?: { tzOffsetMinutes, start, end }, retention?: { rawSnapshotsDays, bucketsDays } } }
+    body: { settings: { shift?: { tzOffsetMinutes, start, end }, retention?: { rawSnapshotsDays, bucketsDays, alertsDays }, alerts?: { ...thresholds..., notifyToast, notifySound } } }
     -> { success: true, settings: { ... } }
 
 Admin / DB Explorer (auth required)
