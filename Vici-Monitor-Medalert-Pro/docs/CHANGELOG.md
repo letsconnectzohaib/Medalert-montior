@@ -14,6 +14,10 @@
 - Implemented **Shift persistence (Phase 1)**:
   - Uses `sql.js` (pure JS/WASM SQLite) so Windows installs do not require Visual Studio build tools
   - Stores `raw_snapshots` and `shift_buckets` in `live-gateway/data/vici_shift.sqlite`
+  - Adds persistent gateway settings (`app_settings`) for shift timing + retention
+  - Buckets by **shift timezone local hour** (not machine local time)
+  - Automatic retention cleanup (raw snapshots + bucket aggregates)
+  - Persists **call-flow snapshots** + **hourly call-flow aggregates** (active/waiting/ivr/ringing avg+max)
 - Fixed Vicidial **summary tile parsing** to map labels→values by tile column (prevents “calls waiting” incorrectly mirroring active calls).
 - Started **Dashboard Pro App Shell**:
   - `dashboard/app.html` provides login-first UX
@@ -22,6 +26,14 @@
 - Added **Advanced → Database Explorer**:
   - Lists tables, shows schema, browses rows with simple filters
   - Safe “Clear DB data” with multi-step confirmation (keeps tables)
+- Upgraded **Shift Analytics**:
+  - New `GET /api/shift/intelligence` rollups (first hour / half shift / full shift) + previous-day comparison
+  - Dashboard now renders cards + a per-hour timeline visualization
+- Added **Call-flow analytics**:
+  - New `GET /api/shift/callflow` returning per-hour active/waiting/ivr/ringing series + rollups + peak-waiting hour
+  - Dashboard Shift Analytics now shows an additional call-flow chart and rollup cards
+- Added **Dashboard Settings (Gateway)**:
+  - Configure shift timezone/start/end and retention days via `GET/PUT /api/admin/settings`
 - Implemented **Extension Pro (Phase 1)**:
   - MV3 popup: login-only UI + gateway status + last snapshot
   - Options page: configure gateway base URL + test connection

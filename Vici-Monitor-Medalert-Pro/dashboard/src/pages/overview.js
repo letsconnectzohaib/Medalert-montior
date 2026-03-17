@@ -29,6 +29,18 @@ export function renderOverview(state) {
   const snap = state.latestSnapshot;
   const s = snap?.summary || {};
 
+  if (!snap) {
+    return el('div', { class: 'grid' }, [
+      el('section', { class: 'card wide' }, [
+        el('div', { class: 'cardTitle' }, ['Waiting for first snapshot…']),
+        el('div', { class: 'note' }, [
+          `WS status: ${state.wsStatus}. `,
+          'Keep the Vicidial realtime report open in a tab and ensure the extension is logged in + publishing.'
+        ])
+      ])
+    ]);
+  }
+
   const summary = el('section', { class: 'card' }, [
     el('div', { class: 'cardTitle' }, ['Summary']),
     el('div', { class: 'summary' }, [
@@ -37,7 +49,9 @@ export function renderOverview(state) {
       metric('Agents logged in', s.agentsLoggedIn ?? 0),
       metric('Agents in calls', s.agentsInCalls ?? 0)
     ]),
-    el('div', { class: 'note' }, ['Live values from snapshot.summary.'])
+    el('div', { class: 'note' }, [
+      `Last update: ${snap.timestamp || '—'} • WS: ${state.wsStatus}`
+    ])
   ]);
 
   const counts = {};

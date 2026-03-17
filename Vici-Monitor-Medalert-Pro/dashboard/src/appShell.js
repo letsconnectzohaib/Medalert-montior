@@ -33,8 +33,9 @@ export function createApp(root) {
     ws: null,
     latestSnapshot: null,
     wsStatus: 'disconnected',
-    // cache for DB-driven shift summary so it doesn't disappear on live updates
-    shiftSummaryCache: null
+    // caches for DB-driven pages so they don't disappear on live updates
+    shiftIntelCache: null,
+    adminSettingsCache: null
   };
 
   const dom = {

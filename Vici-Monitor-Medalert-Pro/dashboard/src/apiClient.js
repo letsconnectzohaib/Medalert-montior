@@ -29,3 +29,45 @@ export function wsUrl(baseUrl) {
   return `${proto}//${u.host}/ws`;
 }
 
+function authHeaders(token) {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function getAdminSettings(baseUrl, token) {
+  const res = await fetch(`${normalizeBaseUrl(baseUrl)}/api/admin/settings`, {
+    headers: { ...authHeaders(token) }
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) return { success: false, error: json?.error || `HTTP ${res.status}` };
+  return { success: true, settings: json.settings };
+}
+
+export async function updateAdminSettings(baseUrl, token, settingsPatch) {
+  const res = await fetch(`${normalizeBaseUrl(baseUrl)}/api/admin/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+    body: JSON.stringify({ settings: settingsPatch })
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) return { success: false, error: json?.error || `HTTP ${res.status}` };
+  return { success: true, settings: json.settings };
+}
+
+export async function fetchShiftIntelligence(baseUrl, token, date) {
+  const res = await fetch(`${normalizeBaseUrl(baseUrl)}/api/shift/intelligence?date=${encodeURIComponent(date)}`, {
+    headers: { ...authHeaders(token) }
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) return { success: false, error: json?.error || `HTTP ${res.status}` };
+  return { success: true, data: json };
+}
+
+export async function fetchShiftCallflow(baseUrl, token, date) {
+  const res = await fetch(`${normalizeBaseUrl(baseUrl)}/api/shift/callflow?date=${encodeURIComponent(date)}`, {
+    headers: { ...authHeaders(token) }
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) return { success: false, error: json?.error || `HTTP ${res.status}` };
+  return { success: true, data: json };
+}
+

@@ -21,6 +21,7 @@ REST
     -> { success: true }
 
   GET  /api/shift/summary?date=YYYY-MM-DD
+    headers: Authorization: Bearer <jwt>
     -> {
          success: true,
          shiftDate: "...",
@@ -30,6 +31,55 @@ REST
            "20": { ... }
          }
        }
+
+  GET  /api/shift/intelligence?date=YYYY-MM-DD
+    headers: Authorization: Bearer <jwt>
+    -> {
+         success: true,
+         shiftDate: "YYYY-MM-DD",
+         shiftWindow: { start: "19:00", end: "04:30" },
+         shiftHours: [19,20,21,22,23,0,1,2,3,4],
+         peakHour: { hour, total_agents } | null,
+         rollups: {
+           firstHour: { hours: [...], totals: {bucket:count...}, totalAgents: number },
+           halfShift: { ... },
+           fullShift: { ... }
+         },
+         compare: {
+           previousShiftDate: "YYYY-MM-DD",
+           fullShift: { totals: {...}, totalAgents: number }
+         },
+         series: { "19": {...}, "20": {...} }
+       }
+
+  GET  /api/shift/callflow?date=YYYY-MM-DD
+    headers: Authorization: Bearer <jwt>
+    -> {
+         success: true,
+         shiftDate: "YYYY-MM-DD",
+         shiftWindow: { start: "19:00", end: "04:30" },
+         shiftHours: [19,20,21,22,23,0,1,2,3,4],
+         peak: { waiting: { hour, calls_waiting_max } | null },
+         rollups: {
+           firstHour: { hours, samples, active_calls_avg, active_calls_max, calls_waiting_avg, calls_waiting_max, ... },
+           halfShift: { ... },
+           restOfShift: { ... },
+           fullShift: { ... }
+         },
+         compare: { previousShiftDate: "YYYY-MM-DD", fullShift: { ... } },
+         series: [
+           { hour, samples, active_calls_avg, active_calls_max, calls_waiting_avg, calls_waiting_max, ... },
+           ...
+         ]
+       }
+
+Admin / Settings (auth required)
+  GET  /api/admin/settings
+    -> { success: true, settings: { shift: {...}, retention: {...} } }
+
+  PUT  /api/admin/settings
+    body: { settings: { shift?: { tzOffsetMinutes, start, end }, retention?: { rawSnapshotsDays, bucketsDays } } }
+    -> { success: true, settings: { ... } }
 
 Admin / DB Explorer (auth required)
   GET  /api/admin/db/tables
@@ -67,5 +117,5 @@ WebSocket
 
 Notes
   - Phase 1 auth is single-admin from env vars in `live-gateway/.env`.
-  - Persistence is intentionally omitted in Phase 1; gateway is “live-first”.
+  - Persistence stores raw snapshots + hourly aggregates; retention is configurable via `/api/admin/settings`.
 
