@@ -94,8 +94,10 @@ function findSummaryTiles() {
     agentsDispo: 0
   };
 
-  // Labels appear as lowercase descriptive strings in tiles.
-  // We parse by walking all <font> nodes with those known labels, then picking next numeric font in the tile.
+  // Deterministic parsing: Vicidial tiles are rendered as label rows followed by value rows.
+  // IMPORTANT: the table uses rowspan + spacer columns; DOM `cellIndex` and raw `td` arrays
+  // do not map to the visual grid. The reliable approach is to pair labels+values by order
+  // within each (labelRow, valueRow) pair.
   const labelToKey = new Map([
     ['current active calls', 'activeCalls'],
     ['calls ringing', 'ringingCalls'],
@@ -109,19 +111,34 @@ function findSummaryTiles() {
     ['agents in dispo', 'agentsDispo']
   ]);
 
-  const fonts = Array.from(document.querySelectorAll('table[width="860"] font'));
-  for (let i = 0; i < fonts.length; i++) {
-    const label = text(fonts[i]).toLowerCase();
-    const key = labelToKey.get(label);
-    if (!key) continue;
+  const table = document.querySelector('table[width="860"]');
+  if (!table) return summary;
 
-    // find the next font that looks numeric
-    for (let j = i + 1; j < Math.min(i + 8, fonts.length); j++) {
-      const n = parseNumberLoose(text(fonts[j]));
-      if (n != null) {
-        summary[key] = Math.max(0, Math.trunc(n));
-        break;
-      }
+  const rows = Array.from(table.querySelectorAll('tr'));
+  for (let i = 0; i < rows.length - 1; i++) {
+    const labelRow = rows[i];
+    const valueRow = rows[i + 1];
+
+    // Build ordered list of known metric keys from the label row.
+    const labelKeys = [];
+    for (const td of Array.from(labelRow.querySelectorAll('td'))) {
+      const label = text(td).toLowerCase();
+      const key = labelToKey.get(label);
+      if (key) labelKeys.push(key);
+    }
+    if (!labelKeys.length) continue;
+
+    // Build ordered list of numeric values from the value row.
+    const values = [];
+    for (const td of Array.from(valueRow.querySelectorAll('td'))) {
+      const n = parseNumberLoose(text(td));
+      if (n != null) values.push(Math.max(0, Math.trunc(n)));
+    }
+    if (!values.length) continue;
+
+    // Assign in order: labelKeys[j] -> values[j]
+    for (let j = 0; j < Math.min(labelKeys.length, values.length); j++) {
+      summary[labelKeys[j]] = values[j];
     }
   }
 

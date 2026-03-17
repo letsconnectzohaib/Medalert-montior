@@ -14,6 +14,11 @@
 - Implemented **Shift persistence (Phase 1)**:
   - Uses `sql.js` (pure JS/WASM SQLite) so Windows installs do not require Visual Studio build tools
   - Stores `raw_snapshots` and `shift_buckets` in `live-gateway/data/vici_shift.sqlite`
+- Fixed Vicidial **summary tile parsing** to map labels→values by tile column (prevents “calls waiting” incorrectly mirroring active calls).
+- Started **Dashboard Pro App Shell**:
+  - `dashboard/app.html` provides login-first UX
+  - Left sidebar navigation: Overview, Shift analytics, Settings
+  - Uses existing gateway login + WS snapshots, with session persistence
 - Implemented **Extension Pro (Phase 1)**:
   - MV3 popup: login-only UI + gateway status + last snapshot
   - Options page: configure gateway base URL + test connection

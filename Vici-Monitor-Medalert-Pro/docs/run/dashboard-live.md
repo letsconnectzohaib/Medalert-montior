@@ -10,6 +10,7 @@
 Open one of these files in a browser:
 - Live view: `Vici-Monitor-Medalert-Pro/dashboard/index.html`
 - Shift analytics: `Vici-Monitor-Medalert-Pro/dashboard/shift.html`
+ - New app shell (login + sidebar): `Vici-Monitor-Medalert-Pro/dashboard/app.html`
 
 Then:
 1. Confirm gateway URL (`http://localhost:3100`)
