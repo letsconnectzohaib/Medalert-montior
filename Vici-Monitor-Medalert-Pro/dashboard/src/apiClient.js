@@ -71,3 +71,14 @@ export async function fetchShiftCallflow(baseUrl, token, date) {
   return { success: true, data: json };
 }
 
+export async function testSlack(baseUrl, token, { severity, message }) {
+  const res = await fetch(`${normalizeBaseUrl(baseUrl)}/api/admin/notifications/slack/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+    body: JSON.stringify({ severity, message })
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) return { success: false, error: json?.error || `HTTP ${res.status}` };
+  return { success: true };
+}
+

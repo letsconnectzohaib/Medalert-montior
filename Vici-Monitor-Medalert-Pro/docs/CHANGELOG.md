@@ -43,6 +43,8 @@
   - Thresholds + dashboard notifications are configurable via gateway settings (`settings.alerts`)
   - Adds correlation hints in alert details (probable cause signals)
   - Live notifications are broadcast over WS (`type: "alert"`) with optional toast/sound
+  - Slack notifications (configurable): webhook + min severity + cooldown, with test endpoint
+  - Slack routing: per-severity routes (info/warn/bad) can target different channels/webhooks
   - Stores alerts in SQLite with retention cleanup
   - New APIs: `GET /api/alerts`, `POST /api/alerts/:id/action`
   - Dashboard now includes an **Alerts** page (filter + ack/resolve)

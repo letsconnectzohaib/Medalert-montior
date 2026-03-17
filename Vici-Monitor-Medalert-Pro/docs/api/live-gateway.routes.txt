@@ -103,6 +103,11 @@ REST
     body: { "action": "ack" | "resolve" | "reopen" }
     -> { success: true }
 
+Admin / Notifications (auth required)
+  POST /api/admin/notifications/slack/test
+    body: { "severity": "info"|"warn"|"bad", "message": "optional test message" }
+    -> { success: true } | { success: false, error }
+
 Admin / Settings (auth required)
   GET  /api/admin/settings
     -> { success: true, settings: { shift: {...}, retention: {...}, alerts: {...} } }

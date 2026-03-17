@@ -5,14 +5,29 @@ function nowIso() {
 }
 
 async function findVicidialTabs() {
+  const settings = await getSettings();
+  const configured = String(settings.target?.reportPageUrl || '').trim();
+  const configuredPattern = configured ? toChromeMatchPattern(configured) : null;
+
   const tabs = await chrome.tabs.query({
     url: [
       'https://*/realtime_report.php*',
       'http://*/realtime_report.php*',
+      ...(configuredPattern ? [configuredPattern] : []),
       'http://127.0.0.1:5500/References/*Real-Time*ALL-ACTIVE.html'
     ]
   });
   return tabs || [];
+}
+
+function toChromeMatchPattern(url) {
+  try {
+    const u = new URL(url);
+    // Match any querystring variants, keep path stable.
+    return `${u.protocol}//${u.host}${u.pathname}*`;
+  } catch {
+    return null;
+  }
 }
 
 async function requestScrapeFromTab(tabId) {

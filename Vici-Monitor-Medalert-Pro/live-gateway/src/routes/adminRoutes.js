@@ -34,8 +34,11 @@ function createAdminRoutes({
     const okAlerts = Object.prototype.hasOwnProperty.call(patch, 'alerts')
       ? await upsertSetting('alerts', patch.alerts)
       : true;
+    const okNotifications = Object.prototype.hasOwnProperty.call(patch, 'notifications')
+      ? await upsertSetting('notifications', patch.notifications)
+      : true;
 
-    if (!okShift || !okRetention || !okAlerts) return res.status(400).json({ success: false, error: 'invalid_setting_key' });
+    if (!okShift || !okRetention || !okAlerts || !okNotifications) return res.status(400).json({ success: false, error: 'invalid_setting_key' });
     const settings = await getSettings();
     res.json({ success: true, settings });
   });

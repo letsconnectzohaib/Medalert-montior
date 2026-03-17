@@ -58,6 +58,44 @@ async function getSettings() {
     };
     await upsertSetting('alerts', out.alerts);
   }
+  if (!out.notifications) {
+    out.notifications = {
+      slack: {
+        username: 'Vici Monitor Pro',
+        cooldownSeconds: 300
+        // routing per severity (each route can override webhook/channel)
+        // global webhook/channel can be used as fallback for routes.
+        ,
+        enabled: false,
+        webhookUrl: '',
+        channel: '',
+        routes: {
+          info: { enabled: false, webhookUrl: '', channel: '' },
+          warn: { enabled: true, webhookUrl: '', channel: '' },
+          bad: { enabled: true, webhookUrl: '', channel: '' }
+        }
+      }
+    };
+    await upsertSetting('notifications', out.notifications);
+  } else {
+    // Backward-compat: migrate older slack config (minSeverity/channel/webhook) into routes.
+    const s = out.notifications?.slack;
+    if (s && !s.routes) {
+      const min = String(s.minSeverity || 'bad');
+      const enableFromMin = (sev) => {
+        const rank = (x) => (x === 'bad' ? 3 : x === 'warn' ? 2 : x === 'info' ? 1 : 0);
+        return rank(sev) >= rank(min);
+      };
+      s.routes = {
+        info: { enabled: enableFromMin('info'), webhookUrl: '', channel: '' },
+        warn: { enabled: enableFromMin('warn'), webhookUrl: '', channel: '' },
+        bad: { enabled: enableFromMin('bad'), webhookUrl: '', channel: '' }
+      };
+      delete s.minSeverity;
+      out.notifications.slack = s;
+      await upsertSetting('notifications', out.notifications);
+    }
+  }
   return out;
 }
 

@@ -13,6 +13,8 @@ const { createShiftRoutes } = require('./routes/shiftRoutes');
 const { createAdminRoutes } = require('./routes/adminRoutes');
 const { createReportsRoutes } = require('./routes/reportsRoutes');
 const { createAlertsRoutes } = require('./routes/alertsRoutes');
+const { createNotificationsRoutes } = require('./routes/notificationsRoutes');
+const { notifySlackForAlert } = require('./notify/slack');
 
 const PORT = Number(process.env.PORT || 3100);
 const JWT_SECRET = process.env.JWT_SECRET || '';
@@ -102,7 +104,21 @@ app.use(
     storeSnapshot: db.storeSnapshot,
     onSnapshot: (snap) => ws.broadcastSnapshot(snap),
     onAlerts: (alerts) => {
-      for (const a of alerts || []) ws.broadcastAlert(a);
+      (async () => {
+        let settings = null;
+        try {
+          settings = await db.getSettings();
+        } catch {
+          settings = null;
+        }
+        for (const a of alerts || []) {
+          ws.broadcastAlert(a);
+          if (settings) {
+            // fire-and-forget
+            notifySlackForAlert({ settings, alert: a }).catch(() => {});
+          }
+        }
+      })();
     }
   })
 );
@@ -149,6 +165,12 @@ app.use(
     requireAuth: requireAuth(JWT_SECRET),
     listAlerts: db.listAlerts,
     updateAlertStatus: db.updateAlertStatus
+  })
+);
+app.use(
+  createNotificationsRoutes({
+    requireAuth: requireAuth(JWT_SECRET),
+    getSettings: db.getSettings
   })
 );
 

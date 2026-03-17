@@ -1,6 +1,10 @@
 const DEFAULTS = {
   gatewayBaseUrl: 'http://localhost:3100',
   auth: null,
+  target: {
+    // Exact page URL to look for (prod or dev). Used by background tab discovery.
+    reportPageUrl: 'https://axcl2s.dialerhosting.com/Xcl2s6wgd/realtime_report.php'
+  },
   scrape: {
     // Primary mode: emit snapshot when DOM changes (page refresh rate drives it, e.g. 4s).
     mode: 'onChange', // 'onChange' | 'poll'
@@ -15,10 +19,11 @@ const DEFAULTS = {
 };
 
 export async function getSettings() {
-  const data = await chrome.storage.local.get(['gatewayBaseUrl', 'auth', 'scrape', 'runtime']);
+  const data = await chrome.storage.local.get(['gatewayBaseUrl', 'auth', 'target', 'scrape', 'runtime']);
   return {
     gatewayBaseUrl: data.gatewayBaseUrl || DEFAULTS.gatewayBaseUrl,
     auth: data.auth || DEFAULTS.auth,
+    target: { ...DEFAULTS.target, ...(data.target || {}) },
     scrape: { ...DEFAULTS.scrape, ...(data.scrape || {}) },
     runtime: data.runtime || DEFAULTS.runtime
   };
@@ -36,6 +41,7 @@ export async function setSettings(partial) {
   const next = {
     ...current,
     ...partialSafe,
+    target: { ...(current.target || {}), ...(partialSafe.target || {}) },
     scrape: { ...(current.scrape || {}), ...(partialSafe.scrape || {}) },
     runtime: { ...(current.runtime || {}), ...(partialSafe.runtime || {}) }
   };

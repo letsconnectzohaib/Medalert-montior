@@ -64,6 +64,7 @@ async function refresh() {
   $('scrape-mode').value = settings.scrape?.mode || 'onChange';
   $('throttle-ms').value = String(settings.scrape?.throttleMs ?? 1500);
   $('poll-ms').value = String(settings.scrape?.pollMs ?? 60000);
+  $('report-page-url').value = settings.target?.reportPageUrl || '';
   $('login-gateway').textContent = settings.gatewayBaseUrl || 'http://localhost:3100';
 
   // Gate: login vs splash vs app
@@ -135,7 +136,8 @@ async function onSaveSettings() {
   const mode = $('scrape-mode').value;
   const throttleMs = Math.max(250, Number($('throttle-ms').value) || 1500);
   const pollMs = Math.max(1000, Number($('poll-ms').value) || 60000);
-  await setSettings({ gatewayBaseUrl, scrape: { mode, throttleMs, pollMs } });
+  const reportPageUrl = $('report-page-url').value.trim();
+  await setSettings({ gatewayBaseUrl, target: { reportPageUrl }, scrape: { mode, throttleMs, pollMs } });
   await refresh();
 }
 

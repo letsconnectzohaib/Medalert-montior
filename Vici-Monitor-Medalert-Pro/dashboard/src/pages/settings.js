@@ -1,4 +1,4 @@
-import { normalizeBaseUrl, pingGateway, getAdminSettings, updateAdminSettings } from '../apiClient.js';
+import { normalizeBaseUrl, pingGateway, getAdminSettings, updateAdminSettings, testSlack } from '../apiClient.js';
 import { loadSession, saveSession } from '../storage.js';
 
 function el(tag, attrs = {}, children = []) {
@@ -30,10 +30,113 @@ export function renderSettings(state, rerender) {
     notifyToast: true,
     notifySound: false
   };
+  const notifications = cached?.notifications || {
+    slack: {
+      enabled: false,
+      webhookUrl: '',
+      channel: '',
+      username: 'Vici Monitor Pro',
+      cooldownSeconds: 300,
+      routes: {
+        info: { enabled: false, webhookUrl: '', channel: '' },
+        warn: { enabled: true, webhookUrl: '', channel: '' },
+        bad: { enabled: true, webhookUrl: '', channel: '' }
+      }
+    }
+  };
+
+  const tab = state.settingsTab || 'gateway';
+  const setTab = (t) => {
+    state.settingsTab = t;
+    rerender();
+  };
+
+  const tabs = el('div', { class: 'tabs' }, [
+    tabBtn('gateway', 'Gateway URL', tab, setTab),
+    tabBtn('shift', 'Shift', tab, setTab),
+    tabBtn('retention', 'Retention', tab, setTab),
+    tabBtn('alerts', 'Alerts', tab, setTab),
+    tabBtn('notifications', 'Notifications', tab, setTab)
+  ]);
 
   const section = el('section', { class: 'card wide' }, [
     el('div', { class: 'cardTitle' }, ['Settings']),
-    el('div', { class: 'note' }, ['Gateway URL is saved locally in your browser. Shift timing + retention are saved in the Live Gateway DB.']),
+    el('div', { class: 'note' }, ['Use tabs to manage gateway configuration cleanly.']),
+    tabs,
+    el('div', { id: 'st_panel' }, [renderPanel(tab, { state, session, shift, retention, alerts, notifications, rerender })]),
+    el('div', { class: 'actions' }, [
+      el('button', {
+        class: 'btn',
+        onclick: async () => {
+          const msg = document.getElementById('st_admin_msg');
+          msg.textContent = 'Loading…';
+          const r = await getAdminSettings(state.baseUrl, state.token);
+          if (!r.success) {
+            msg.textContent = `Failed: ${r.error}`;
+            return;
+          }
+          state.adminSettingsCache = r.settings || {};
+          msg.textContent = 'Loaded.';
+          rerender();
+        }
+      }, ['Load from gateway']),
+      el('button', {
+        class: 'btn primary',
+        onclick: async () => {
+          const msg = document.getElementById('st_admin_msg');
+          msg.textContent = 'Saving…';
+
+          const patch = buildPatchFromDom();
+          const r = await updateAdminSettings(state.baseUrl, state.token, patch);
+          if (!r.success) {
+            msg.textContent = `Failed: ${r.error}`;
+            return;
+          }
+          state.adminSettingsCache = r.settings || {};
+          msg.textContent = 'Saved to gateway.';
+          rerender();
+        }
+      }, ['Save to gateway'])
+    ]),
+    el('div', { id: 'st_admin_msg', class: 'msg' }, [''])
+  ]);
+
+  // checkbox defaults
+  setTimeout(() => {
+    const t = document.getElementById('st_al_toast');
+    const s = document.getElementById('st_al_sound');
+    if (t) t.checked = !!alerts.notifyToast;
+    if (s) s.checked = !!alerts.notifySound;
+    const se = document.getElementById('st_slack_enabled');
+    if (se) se.checked = !!notifications.slack?.enabled;
+    const sb = document.getElementById('st_slack_bad_enabled');
+    const sw = document.getElementById('st_slack_warn_enabled');
+    const si = document.getElementById('st_slack_info_enabled');
+    if (sb) sb.checked = !!notifications.slack?.routes?.bad?.enabled;
+    if (sw) sw.checked = !!notifications.slack?.routes?.warn?.enabled;
+    if (si) si.checked = !!notifications.slack?.routes?.info?.enabled;
+  }, 0);
+
+  return section;
+}
+
+function tabBtn(key, label, active, setTab) {
+  return el('button', { type: 'button', class: `tabBtn ${active === key ? 'active' : ''}`, onclick: () => setTab(key) }, [label]);
+}
+
+function renderPanel(tab, ctx) {
+  if (tab === 'gateway') return panelGateway(ctx);
+  if (tab === 'shift') return panelShift(ctx);
+  if (tab === 'retention') return panelRetention(ctx);
+  if (tab === 'alerts') return panelAlerts(ctx);
+  if (tab === 'notifications') return panelSlack(ctx);
+  return el('div', {}, ['Unknown tab']);
+}
+
+function panelGateway({ state, session, rerender }) {
+  return el('div', {}, [
+    el('div', { class: 'cardTitle' }, ['Gateway URL (Browser)']),
+    el('div', { class: 'note' }, ['This is stored locally in your browser (not in the gateway DB).']),
     el('div', { class: 'formRow' }, [
       el('label', {}, ['Gateway URL']),
       el('input', { id: 'st_gateway', value: session.gatewayUrl || state.baseUrl })
@@ -63,8 +166,11 @@ export function renderSettings(state, rerender) {
       }, ['Save'])
     ]),
     el('div', { id: 'st_msg', class: 'msg' }, [''])
-    ,
-    el('div', { class: 'divider' }, ['']),
+  ]);
+}
+
+function panelShift({ shift }) {
+  return el('div', {}, [
     el('div', { class: 'cardTitle' }, ['Shift timing (Gateway)']),
     el('div', { class: 'formRow' }, [
       el('label', {}, ['Timezone offset (minutes)']),
@@ -77,7 +183,12 @@ export function renderSettings(state, rerender) {
     el('div', { class: 'formRow' }, [
       el('label', {}, ['Shift end (HH:MM)']),
       el('input', { id: 'st_shift_end', value: String(shift.end ?? '04:30') })
-    ]),
+    ])
+  ]);
+}
+
+function panelRetention({ retention }) {
+  return el('div', {}, [
     el('div', { class: 'cardTitle' }, ['Retention (Gateway)']),
     el('div', { class: 'formRow' }, [
       el('label', {}, ['Raw snapshots retention (days)']),
@@ -90,8 +201,12 @@ export function renderSettings(state, rerender) {
     el('div', { class: 'formRow' }, [
       el('label', {}, ['Alerts retention (days)']),
       el('input', { id: 'st_ret_alerts', type: 'number', value: String(retention.alertsDays ?? 30) })
-    ]),
-    el('div', { class: 'divider' }, ['']),
+    ])
+  ]);
+}
+
+function panelAlerts({ alerts }) {
+  return el('div', {}, [
     el('div', { class: 'cardTitle' }, ['Alerts (Gateway)']),
     el('div', { class: 'note' }, ['Controls detection thresholds and dashboard notifications.']),
     el('div', { class: 'formRow' }, [
@@ -140,75 +255,190 @@ export function renderSettings(state, rerender) {
     el('div', { class: 'formRow' }, [
       el('label', {}, ['Dashboard sound']),
       el('input', { id: 'st_al_sound', type: 'checkbox' })
+    ])
+  ]);
+}
+
+function panelSlack({ state, notifications }) {
+  const slack = notifications.slack || {};
+  const routes = slack.routes || {};
+  const info = routes.info || {};
+  const warn = routes.warn || {};
+  const bad = routes.bad || {};
+  return el('div', {}, [
+    el('div', { class: 'cardTitle' }, ['Notifications → Slack (Gateway)']),
+    el('div', { class: 'note' }, ['Configure per-severity routing. Route fields fall back to the global webhook/channel if left blank.']),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Enabled']),
+      el('input', { id: 'st_slack_enabled', type: 'checkbox' })
     ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Global Webhook URL']),
+      el('input', { id: 'st_slack_webhook', value: String(slack.webhookUrl || '') })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Global Channel (optional)']),
+      el('input', { id: 'st_slack_channel', value: String(slack.channel || '') })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Username']),
+      el('input', { id: 'st_slack_username', value: String(slack.username || 'Vici Monitor Pro') })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Cooldown (sec)']),
+      el('input', { id: 'st_slack_cd', type: 'number', value: String(slack.cooldownSeconds ?? 300) })
+    ]),
+    el('div', { class: 'divider' }, ['']),
+    el('div', { class: 'cardTitle' }, ['Routing']),
+
+    el('div', { class: 'note' }, ['Bad (critical) route']),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Bad enabled']),
+      el('input', { id: 'st_slack_bad_enabled', type: 'checkbox' })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Bad webhook']),
+      el('input', { id: 'st_slack_bad_webhook', value: String(bad.webhookUrl || '') })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Bad channel']),
+      el('input', { id: 'st_slack_bad_channel', value: String(bad.channel || '') })
+    ]),
+
+    el('div', { class: 'note' }, ['Warn route']),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Warn enabled']),
+      el('input', { id: 'st_slack_warn_enabled', type: 'checkbox' })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Warn webhook']),
+      el('input', { id: 'st_slack_warn_webhook', value: String(warn.webhookUrl || '') })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Warn channel']),
+      el('input', { id: 'st_slack_warn_channel', value: String(warn.channel || '') })
+    ]),
+
+    el('div', { class: 'note' }, ['Info route']),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Info enabled']),
+      el('input', { id: 'st_slack_info_enabled', type: 'checkbox' })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Info webhook']),
+      el('input', { id: 'st_slack_info_webhook', value: String(info.webhookUrl || '') })
+    ]),
+    el('div', { class: 'formRow' }, [
+      el('label', {}, ['Info channel']),
+      el('input', { id: 'st_slack_info_channel', value: String(info.channel || '') })
+    ]),
+
     el('div', { class: 'actions' }, [
       el('button', {
         class: 'btn',
         onclick: async () => {
           const msg = document.getElementById('st_admin_msg');
-          msg.textContent = 'Loading…';
-          const r = await getAdminSettings(state.baseUrl, state.token);
-          if (!r.success) {
-            msg.textContent = `Failed: ${r.error}`;
-            return;
-          }
-          state.adminSettingsCache = r.settings || {};
-          msg.textContent = 'Loaded.';
-          rerender();
+          msg.textContent = 'Sending Slack test…';
+          const r = await testSlack(state.baseUrl, state.token, { severity: 'bad', message: 'Test BAD Slack message from Vicidial Monitor Pro' });
+          msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
         }
-      }, ['Load from gateway']),
+      }, ['Send BAD test']),
       el('button', {
-        class: 'btn primary',
+        class: 'btn',
         onclick: async () => {
           const msg = document.getElementById('st_admin_msg');
-          msg.textContent = 'Saving…';
-          const patch = {
-            shift: {
-              tzOffsetMinutes: Number(document.getElementById('st_tz').value || 0),
-              start: String(document.getElementById('st_shift_start').value || '').trim(),
-              end: String(document.getElementById('st_shift_end').value || '').trim()
-            },
-            retention: {
-              rawSnapshotsDays: Number(document.getElementById('st_ret_raw').value || 14),
-              bucketsDays: Number(document.getElementById('st_ret_buckets').value || 60),
-              alertsDays: Number(document.getElementById('st_ret_alerts').value || 30)
-            },
-            alerts: {
-              waitingSpikeMax: Number(document.getElementById('st_al_wait_max').value || 25),
-              waitingSpikeSustainSeconds: Number(document.getElementById('st_al_wait_sus').value || 120),
-              waitingSpikeCooldownSeconds: Number(document.getElementById('st_al_wait_cd').value || 600),
-              purpleOverloadMin: Number(document.getElementById('st_al_purp_min').value || 8),
-              purpleOverloadSustainSeconds: Number(document.getElementById('st_al_purp_sus').value || 180),
-              purpleOverloadCooldownSeconds: Number(document.getElementById('st_al_purp_cd').value || 900),
-              dropPercentMin: Number(document.getElementById('st_al_drop_min').value || 3),
-              dropPercentJumpPoints: Number(document.getElementById('st_al_drop_jump').value || 2.5),
-              dropPercentCooldownSeconds: Number(document.getElementById('st_al_drop_cd').value || 900),
-              notifyToast: !!document.getElementById('st_al_toast').checked,
-              notifySound: !!document.getElementById('st_al_sound').checked
-            }
-          };
-          const r = await updateAdminSettings(state.baseUrl, state.token, patch);
-          if (!r.success) {
-            msg.textContent = `Failed: ${r.error}`;
-            return;
-          }
-          state.adminSettingsCache = r.settings || {};
-          msg.textContent = 'Saved to gateway.';
-          rerender();
+          msg.textContent = 'Sending Slack test…';
+          const r = await testSlack(state.baseUrl, state.token, { severity: 'warn', message: 'Test WARN Slack message from Vicidial Monitor Pro' });
+          msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
         }
-      }, ['Save to gateway'])
-    ]),
-    el('div', { id: 'st_admin_msg', class: 'msg' }, [''])
+      }, ['Send WARN test']),
+      el('button', {
+        class: 'btn',
+        onclick: async () => {
+          const msg = document.getElementById('st_admin_msg');
+          msg.textContent = 'Sending Slack test…';
+          const r = await testSlack(state.baseUrl, state.token, { severity: 'info', message: 'Test INFO Slack message from Vicidial Monitor Pro' });
+          msg.textContent = r.success ? 'Slack test sent.' : `Slack test failed: ${r.error}`;
+        }
+      }, ['Send INFO test'])
+    ])
   ]);
+}
 
-  // checkbox defaults
-  setTimeout(() => {
-    const t = document.getElementById('st_al_toast');
-    const s = document.getElementById('st_al_sound');
-    if (t) t.checked = !!alerts.notifyToast;
-    if (s) s.checked = !!alerts.notifySound;
-  }, 0);
+function buildPatchFromDom() {
+  // Some fields may not exist for inactive tabs; fall back safely.
+  const shift = {
+    tzOffsetMinutes: document.getElementById('st_tz') ? Number(document.getElementById('st_tz').value || 0) : undefined,
+    start: document.getElementById('st_shift_start') ? String(document.getElementById('st_shift_start').value || '').trim() : undefined,
+    end: document.getElementById('st_shift_end') ? String(document.getElementById('st_shift_end').value || '').trim() : undefined
+  };
+  const retention = {
+    rawSnapshotsDays: document.getElementById('st_ret_raw') ? Number(document.getElementById('st_ret_raw').value || 14) : undefined,
+    bucketsDays: document.getElementById('st_ret_buckets') ? Number(document.getElementById('st_ret_buckets').value || 60) : undefined,
+    alertsDays: document.getElementById('st_ret_alerts') ? Number(document.getElementById('st_ret_alerts').value || 30) : undefined
+  };
+  const alerts = {
+    waitingSpikeMax: document.getElementById('st_al_wait_max') ? Number(document.getElementById('st_al_wait_max').value || 25) : undefined,
+    waitingSpikeSustainSeconds: document.getElementById('st_al_wait_sus') ? Number(document.getElementById('st_al_wait_sus').value || 120) : undefined,
+    waitingSpikeCooldownSeconds: document.getElementById('st_al_wait_cd') ? Number(document.getElementById('st_al_wait_cd').value || 600) : undefined,
+    purpleOverloadMin: document.getElementById('st_al_purp_min') ? Number(document.getElementById('st_al_purp_min').value || 8) : undefined,
+    purpleOverloadSustainSeconds: document.getElementById('st_al_purp_sus') ? Number(document.getElementById('st_al_purp_sus').value || 180) : undefined,
+    purpleOverloadCooldownSeconds: document.getElementById('st_al_purp_cd') ? Number(document.getElementById('st_al_purp_cd').value || 900) : undefined,
+    dropPercentMin: document.getElementById('st_al_drop_min') ? Number(document.getElementById('st_al_drop_min').value || 3) : undefined,
+    dropPercentJumpPoints: document.getElementById('st_al_drop_jump') ? Number(document.getElementById('st_al_drop_jump').value || 2.5) : undefined,
+    dropPercentCooldownSeconds: document.getElementById('st_al_drop_cd') ? Number(document.getElementById('st_al_drop_cd').value || 900) : undefined,
+    notifyToast: document.getElementById('st_al_toast') ? !!document.getElementById('st_al_toast').checked : undefined,
+    notifySound: document.getElementById('st_al_sound') ? !!document.getElementById('st_al_sound').checked : undefined
+  };
+  const notifications = {
+    slack: {
+      enabled: document.getElementById('st_slack_enabled') ? !!document.getElementById('st_slack_enabled').checked : undefined,
+      webhookUrl: document.getElementById('st_slack_webhook') ? String(document.getElementById('st_slack_webhook').value || '').trim() : undefined,
+      channel: document.getElementById('st_slack_channel') ? String(document.getElementById('st_slack_channel').value || '').trim() : undefined,
+      username: document.getElementById('st_slack_username') ? String(document.getElementById('st_slack_username').value || 'Vici Monitor Pro').trim() : undefined,
+      cooldownSeconds: document.getElementById('st_slack_cd') ? Number(document.getElementById('st_slack_cd').value || 300) : undefined,
+      routes: {
+        bad: {
+          enabled: document.getElementById('st_slack_bad_enabled') ? !!document.getElementById('st_slack_bad_enabled').checked : undefined,
+          webhookUrl: document.getElementById('st_slack_bad_webhook') ? String(document.getElementById('st_slack_bad_webhook').value || '').trim() : undefined,
+          channel: document.getElementById('st_slack_bad_channel') ? String(document.getElementById('st_slack_bad_channel').value || '').trim() : undefined
+        },
+        warn: {
+          enabled: document.getElementById('st_slack_warn_enabled') ? !!document.getElementById('st_slack_warn_enabled').checked : undefined,
+          webhookUrl: document.getElementById('st_slack_warn_webhook') ? String(document.getElementById('st_slack_warn_webhook').value || '').trim() : undefined,
+          channel: document.getElementById('st_slack_warn_channel') ? String(document.getElementById('st_slack_warn_channel').value || '').trim() : undefined
+        },
+        info: {
+          enabled: document.getElementById('st_slack_info_enabled') ? !!document.getElementById('st_slack_info_enabled').checked : undefined,
+          webhookUrl: document.getElementById('st_slack_info_webhook') ? String(document.getElementById('st_slack_info_webhook').value || '').trim() : undefined,
+          channel: document.getElementById('st_slack_info_channel') ? String(document.getElementById('st_slack_info_channel').value || '').trim() : undefined
+        }
+      }
+    }
+  };
 
-  return section;
+  // Remove undefined keys so we don't overwrite settings from inactive tabs.
+  const clean = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+  const patch = {};
+  const s = clean(shift);
+  const r = clean(retention);
+  const a = clean(alerts);
+  const slack = clean(notifications.slack);
+  if (notifications.slack?.routes) {
+    const cleanRoute = (r) => Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined));
+    const routes = notifications.slack.routes;
+    const cleanedRoutes = {
+      bad: cleanRoute(routes.bad || {}),
+      warn: cleanRoute(routes.warn || {}),
+      info: cleanRoute(routes.info || {})
+    };
+    slack.routes = Object.fromEntries(Object.entries(cleanedRoutes).filter(([, v]) => Object.keys(v).length));
+  }
+  const n = { slack };
+  if (Object.keys(s).length) patch.shift = s;
+  if (Object.keys(r).length) patch.retention = r;
+  if (Object.keys(a).length) patch.alerts = a;
+  if (Object.keys(n.slack).length) patch.notifications = n;
+  return patch;
 }
 

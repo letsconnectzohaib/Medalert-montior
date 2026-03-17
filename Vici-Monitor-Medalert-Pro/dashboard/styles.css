@@ -144,6 +144,11 @@ select.inputLike{width:100%;border:1px solid var(--border);background:rgba(255,2
 .toast.bad{border-color:rgba(255,77,79,.35)}
 .toast.good{border-color:rgba(25,195,125,.35)}
 
+/* Settings tabs */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.tabBtn{border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted);padding:7px 10px;cursor:pointer}
+.tabBtn.active{color:var(--text);border-color:rgba(76,141,255,.35);background:rgba(76,141,255,.14)}
+
 @media (max-width: 960px){
   .shell{grid-template-columns:1fr}
   .sidebar{height:auto;position:static}
