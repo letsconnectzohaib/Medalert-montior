@@ -12,7 +12,8 @@
   "host_permissions": [
     "http://localhost:3100/*",
     "https://*/realtime_report.php*",
-    "http://*/realtime_report.php*"
+    "http://*/realtime_report.php*",
+    "http://127.0.0.1:5500/References/*"
   ],
   "background": {
     "service_worker": "background/service_worker.js",
@@ -26,7 +27,11 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://*/realtime_report.php*", "http://*/realtime_report.php*"],
+      "matches": [
+        "https://*/realtime_report.php*",
+        "http://*/realtime_report.php*",
+        "http://127.0.0.1:5500/References/*Real-Time*ALL-ACTIVE.html"
+      ],
       "js": ["content/content_script.js"],
       "run_at": "document_idle"
     }

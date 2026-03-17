@@ -20,6 +20,17 @@ REST
     body: { "snapshot": { ...VicidialSnapshot... } }
     -> { success: true }
 
+  GET  /api/shift/summary?date=YYYY-MM-DD
+    -> {
+         success: true,
+         shiftDate: "...",
+         peakHour: { hour, total_agents } | null,
+         hours: {
+           "19": { "oncall_gt_5m": 4, "waiting_gt_1m": 2, ... },
+           "20": { ... }
+         }
+       }
+
 WebSocket
   WS  /ws
 

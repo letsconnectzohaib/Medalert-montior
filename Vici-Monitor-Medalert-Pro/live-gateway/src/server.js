@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { WebSocketServer } = require('ws');
+const { storeSnapshot, getShiftSummary, getPeakHour, computeShiftDate } = require('./db');
 require('dotenv').config();
 
 const PORT = Number(process.env.PORT || 3100);
@@ -67,12 +68,28 @@ app.post('/api/live/snapshot', (req, res) => {
   if (!snapshot) return res.status(400).json({ success: false, error: 'missing_snapshot' });
 
   latestSnapshot = snapshot;
+  storeSnapshot(snapshot);
 
   for (const client of wss.clients) {
     if (client.isSubscribed) safeSend(client, { type: 'snapshot', snapshot: latestSnapshot });
   }
 
   res.json({ success: true });
+});
+
+// --- Shift analytics ---
+
+app.get('/api/shift/summary', (req, res) => {
+  const date = req.query.date || computeShiftDate(new Date().toISOString());
+  const hours = getShiftSummary(date);
+  const peak = getPeakHour(date);
+
+  res.json({
+    success: true,
+    shiftDate: date,
+    peakHour: peak,
+    hours
+  });
 });
 
 // --- WS ---

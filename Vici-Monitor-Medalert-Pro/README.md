@@ -6,7 +6,7 @@ This is the **next-generation** implementation (kept alongside the legacy `Vici-
 
 - `extension/`: Chrome Extension (MV3) — scrapes Vicidial realtime report and streams snapshots.
 - `live-gateway/`: Auth + WebSocket gateway — receives snapshots and broadcasts to dashboards.
-- `dashboard/`: Web dashboard — live view first; analytics later.
+- `dashboard/`: Web dashboard — live view first; analytics later. Open `dashboard/index.html` in a browser for Phase 1.
 - `shared/`: Shared schema + utilities.
 - `docs/`: Contracts, API docs (`.txt`), architecture notes, phases.
 

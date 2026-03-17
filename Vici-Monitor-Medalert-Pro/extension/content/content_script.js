@@ -1,6 +1,56 @@
-import { parseNumberLoose, parseDroppedAnswered, mapStateBucketFromRowClass } from '../shared/parse.js';
-
 console.log('Vicidial Monitor Pro content script loaded:', window.location.href);
+
+// Local helpers (content scripts are not ES modules in MV3,
+// so we keep these helpers inline instead of importing).
+function parseNumberLoose(textValue) {
+  if (textValue == null) return null;
+  const cleaned = String(textValue).replace(/[^\d.-]/g, '').trim();
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseDroppedAnswered(textValue) {
+  if (!textValue) return { dropped: 0, answered: 0 };
+  const parts = String(textValue).split('/');
+  const dropped = parseNumberLoose(parts[0]) ?? 0;
+  const answered = parseNumberLoose(parts[1]) ?? 0;
+  return { dropped, answered };
+}
+
+function mapStateBucketFromRowClass(rowClass) {
+  const cls = String(rowClass || '').trim();
+  switch (cls) {
+    case 'TRred':
+      return 'chatting';
+    case 'TRorange':
+      return 'email';
+    case 'TRlightblue':
+      return 'waiting_lt_1m';
+    case 'TRblue':
+      return 'waiting_gt_1m';
+    case 'TRmidnightblue':
+      return 'waiting_gt_5m';
+    case 'TRthistle':
+      return 'oncall_gt_10s';
+    case 'TRviolet':
+      return 'oncall_gt_1m';
+    case 'TRpurple':
+      return 'oncall_gt_5m';
+    case 'TRkhaki':
+      return 'paused_gt_10s';
+    case 'TRyellow':
+      return 'paused_gt_1m';
+    case 'TRolive':
+      return 'paused_gt_5m';
+    case 'TRlime':
+      return 'threeway_gt_10s';
+    case 'TRblack':
+      return 'deadcall';
+    default:
+      return 'unknown';
+  }
+}
 
 function text(el) {
   return (el?.textContent || '').replace(/\u00A0/g, ' ').trim();

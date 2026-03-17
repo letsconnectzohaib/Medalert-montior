@@ -5,7 +5,13 @@ function nowIso() {
 }
 
 async function findVicidialTabs() {
-  const tabs = await chrome.tabs.query({ url: ['https://*/realtime_report.php*', 'http://*/realtime_report.php*'] });
+  const tabs = await chrome.tabs.query({
+    url: [
+      'https://*/realtime_report.php*',
+      'http://*/realtime_report.php*',
+      'http://127.0.0.1:5500/References/*Real-Time*ALL-ACTIVE.html'
+    ]
+  });
   return tabs || [];
 }
 

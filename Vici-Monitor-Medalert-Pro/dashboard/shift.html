@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vicidial Monitor Pro — Shift Analytics</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="name">Vicidial Monitor Pro</div>
+          <div class="tag">Shift analytics (purple / violet / blue)</div>
+        </div>
+      </header>
+
+      <main class="grid">
+        <section class="card">
+          <div class="cardTitle">Shift selection</div>
+          <div class="formRow">
+            <label>Shift date (Asia/Karachi)</label>
+            <input id="shiftDate" type="date" />
+          </div>
+          <div class="actions">
+            <button id="loadShift" class="btn primary">Load summary</button>
+          </div>
+          <div id="shiftMsg" class="msg"></div>
+        </section>
+
+        <section class="card wide">
+          <div class="cardTitle">Peak + hourly buckets</div>
+          <div id="peakInfo" class="note">No data yet.</div>
+          <div class="historyWrap">
+            <pre id="shiftLines" class="history"></pre>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="./shift.js"></script>
+  </body>
+</html>
+
