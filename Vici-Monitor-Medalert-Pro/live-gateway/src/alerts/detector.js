@@ -1,10 +1,13 @@
 const { createAlert } = require('../db/alerts');
+const { toLocalParts } = require('../db/time');
 
 // In-memory detection state (fine for single gateway instance).
 const state = {
   lastDropPercent: null,
   waitingHighSinceTs: null,
   purpleHighSinceTs: null,
+  staffingHighSinceTs: null,
+  waitingSeries: [],
   cooldown: new Map() // key -> lastAlertTsMs
 };
 
@@ -42,6 +45,53 @@ function buildProbableCauses({ counts, callMetrics }) {
   return { ready, paused, inCall, purple, waiting, active, hints };
 }
 
+function pushWaitingPoint(tsIso, waiting) {
+  const t = Date.parse(tsIso);
+  if (!Number.isFinite(t)) return;
+  state.waitingSeries.push({ t, waiting: Number(waiting || 0) });
+  // keep ~60 minutes max
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  state.waitingSeries = state.waitingSeries.filter((p) => p.t >= cutoff);
+}
+
+function estimateEtaMinutesToTarget(targetWaiting) {
+  // simple linear trend over last 10 minutes: waiting = a + b*t
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000;
+  const pts = state.waitingSeries.filter((p) => p.t >= now - windowMs);
+  if (pts.length < 3) return null;
+
+  const t0 = pts[0].t;
+  const xs = pts.map((p) => (p.t - t0) / 60000); // minutes from start
+  const ys = pts.map((p) => Number(p.waiting || 0));
+  const n = xs.length;
+  const xbar = xs.reduce((a, b) => a + b, 0) / n;
+  const ybar = ys.reduce((a, b) => a + b, 0) / n;
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i++) {
+    num += (xs[i] - xbar) * (ys[i] - ybar);
+    den += (xs[i] - xbar) * (xs[i] - xbar);
+  }
+  if (!den) return null;
+  const slope = num / den; // waiting per minute
+  if (!(slope > 0.05)) return null; // ignore flat/noisy trends
+
+  const yNow = ys[ys.length - 1];
+  const minutes = (Number(targetWaiting) - yNow) / slope;
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  if (minutes > 180) return null;
+  return Math.round(minutes);
+}
+
+function etaLabel(tsIso, tzOffsetMinutes, addMinutes) {
+  const baseMs = Date.parse(tsIso);
+  if (!Number.isFinite(baseMs)) return null;
+  const dt = new Date(baseMs + Number(addMinutes || 0) * 60 * 1000).toISOString();
+  const local = toLocalParts(dt, tzOffsetMinutes);
+  return `${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}`;
+}
+
 async function detectAndStoreAlerts({ ts, shiftDate, counts, callMetrics, settings }) {
   const nowMs = ms(ts);
   const cfg = settings?.alerts || {};
@@ -66,9 +116,18 @@ async function detectAndStoreAlerts({ ts, shiftDate, counts, callMetrics, settin
     cooldownSeconds: Math.max(30, Number(cfg.dropPercentCooldownSeconds ?? 900))
   };
 
+  const staffing = {
+    gapMin: Math.max(1, Number(cfg.staffingGapMin ?? 5)),
+    sustainSeconds: Math.max(10, Number(cfg.staffingSustainSeconds ?? 120)),
+    cooldownSeconds: Math.max(30, Number(cfg.staffingCooldownSeconds ?? 900))
+  };
+
   const waiting = Number(callMetrics?.calls_waiting ?? 0);
   const active = Number(callMetrics?.active_calls ?? 0);
   const dropPercent = Number(callMetrics?.dropped_percent ?? 0);
+  const ready = Number(counts?.ready ?? 0);
+  const gap = Math.max(0, waiting - ready);
+  pushWaitingPoint(ts, waiting);
 
   // --- Waiting spike sustained ---
   if (waiting >= waitingSpike.max) {
@@ -135,6 +194,44 @@ async function detectAndStoreAlerts({ ts, shiftDate, counts, callMetrics, settin
         }
       }
     }
+  }
+
+  // --- Proactive staffing shortage (waiting outpaces ready) ---
+  if (gap >= staffing.gapMin && waiting > 0) {
+    if (!state.staffingHighSinceTs) state.staffingHighSinceTs = ts;
+    const sinceMs = ms(state.staffingHighSinceTs);
+    const durSec = Math.round((nowMs - sinceMs) / 1000);
+    if (durSec >= staffing.sustainSeconds) {
+      const key = `staffing_shortage_${shiftDate}`;
+      if (canFire(key, nowMs, staffing.cooldownSeconds * 1000)) {
+        const severity = gap >= staffing.gapMin * 2 ? 'bad' : 'warn';
+        const etaMin = estimateEtaMinutesToTarget(waitingSpike.max);
+        const eta = etaMin != null ? etaLabel(ts, settings?.shift?.tzOffsetMinutes ?? 0, etaMin) : null;
+        const etaText = eta ? ` by ${eta}` : '';
+        created.push(
+          await createAlert({
+            ts,
+            shiftDate,
+            type: 'staffing_shortage',
+            severity,
+            title: `Staffing gap: need ${gap} more agent${gap === 1 ? '' : 's'}${etaText}`,
+            details: {
+              waiting,
+              active,
+              ready,
+              gap,
+              sustainedSeconds: durSec,
+              threshold: staffing.gapMin,
+              etaMinutesToWaitingSpike: etaMin,
+              etaLocalTime: eta,
+              probableCause: probable
+            }
+          })
+        );
+      }
+    }
+  } else {
+    state.staffingHighSinceTs = null;
   }
 
   return created;

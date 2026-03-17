@@ -49,6 +49,13 @@ select.inputLike{width:100%;border:1px solid var(--border);background:rgba(255,2
 .kv .k{color:var(--muted);font-size:12px}
 .kv .v{font-weight:800;font-size:14px;margin-top:6px;word-break:break-word}
 
+.trendGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.trendCard{border:1px solid var(--border);border-radius:12px;padding:10px;background:rgba(255,255,255,.02);min-height:92px}
+.trendTop{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.trendLabel{color:var(--muted);font-size:12px}
+.trendValue{font-weight:950;font-size:18px}
+.spark{margin-top:8px;border:1px solid rgba(255,255,255,.06);border-radius:10px;background:rgba(0,0,0,.18)}
+
 .formCols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .formBlock{border:1px solid var(--border);border-radius:12px;padding:12px;background:rgba(255,255,255,.02)}
 .formBlockTitle{font-weight:800;margin-bottom:10px}
@@ -72,6 +79,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   .summary{grid-template-columns:repeat(2,1fr)}
   .kpiGrid{grid-template-columns:repeat(2,1fr)}
   .metaGrid{grid-template-columns:1fr}
+  .trendGrid{grid-template-columns:1fr}
   .buckets{grid-template-columns:repeat(2,1fr)}
   .formCols{grid-template-columns:1fr}
 }

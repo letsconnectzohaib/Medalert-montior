@@ -132,6 +132,7 @@ async function refresh(state) {
         el('th', {}, ['Severity']),
         el('th', {}, ['Type']),
         el('th', {}, ['Title']),
+        el('th', {}, ['ETA']),
         el('th', {}, ['Status']),
         el('th', {}, ['Actions'])
       ])
@@ -153,11 +154,13 @@ function row(state, a) {
     actions.push(actionBtn(state, a.id, 'reopen', 'Reopen'));
   }
 
+  const eta = a?.details?.etaLocalTime || '';
   return el('tr', {}, [
     el('td', {}, [String(a.ts || '—')]),
     el('td', {}, [el('span', { class: `badge ${sevClass(a.severity)}` }, [String(a.severity)])]),
     el('td', {}, [String(a.type || '—')]),
     el('td', {}, [String(a.title || '—')]),
+    el('td', {}, [String(eta)]),
     el('td', {}, [String(a.status || '—')]),
     el('td', {}, actions)
   ]);

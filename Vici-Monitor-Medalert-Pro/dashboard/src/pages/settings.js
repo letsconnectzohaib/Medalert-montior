@@ -271,6 +271,21 @@ function panelAlerts({ alerts }) {
         el('label', {}, ['Cooldown (sec)']),
         el('input', { id: 'st_al_drop_cd', type: 'number', value: String(alerts.dropPercentCooldownSeconds ?? 900) })
       ])
+      ,
+      el('div', { class: 'divider' }, ['']),
+      el('div', { class: 'formBlockTitle', style: 'font-size:12px;color:var(--muted);' }, ['Proactive staffing']),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Gap min (waiting - ready)']),
+        el('input', { id: 'st_al_staff_gap', type: 'number', value: String(alerts.staffingGapMin ?? 5) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Sustain (sec)']),
+        el('input', { id: 'st_al_staff_sus', type: 'number', value: String(alerts.staffingSustainSeconds ?? 120) })
+      ]),
+      el('div', { class: 'formRow' }, [
+        el('label', {}, ['Cooldown (sec)']),
+        el('input', { id: 'st_al_staff_cd', type: 'number', value: String(alerts.staffingCooldownSeconds ?? 900) })
+      ])
     ]),
     el('div', { class: 'formBlock' }, [
       el('div', { class: 'formBlockTitle' }, ['Dashboard notifications']),
@@ -430,6 +445,9 @@ function buildPatchFromDom() {
     dropPercentMin: document.getElementById('st_al_drop_min') ? Number(document.getElementById('st_al_drop_min').value || 3) : undefined,
     dropPercentJumpPoints: document.getElementById('st_al_drop_jump') ? Number(document.getElementById('st_al_drop_jump').value || 2.5) : undefined,
     dropPercentCooldownSeconds: document.getElementById('st_al_drop_cd') ? Number(document.getElementById('st_al_drop_cd').value || 900) : undefined,
+    staffingGapMin: document.getElementById('st_al_staff_gap') ? Number(document.getElementById('st_al_staff_gap').value || 5) : undefined,
+    staffingSustainSeconds: document.getElementById('st_al_staff_sus') ? Number(document.getElementById('st_al_staff_sus').value || 120) : undefined,
+    staffingCooldownSeconds: document.getElementById('st_al_staff_cd') ? Number(document.getElementById('st_al_staff_cd').value || 900) : undefined,
     notifyToast: document.getElementById('st_al_toast') ? !!document.getElementById('st_al_toast').checked : undefined,
     notifySound: document.getElementById('st_al_sound') ? !!document.getElementById('st_al_sound').checked : undefined
   };

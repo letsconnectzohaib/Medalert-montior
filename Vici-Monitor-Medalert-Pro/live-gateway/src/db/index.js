@@ -1,10 +1,34 @@
-const { storeSnapshot, computeShiftDate } = require('./snapshots');
-const { getShiftSummary, getPeakHour } = require('./buckets');
-const { getCallflowHourly, getCallflowPeakHour } = require('./callflow');
-const { listTables, getTableInfo, queryTable, prepareClear, confirmClear } = require('./adminExplorer');
-const { getSettings, upsertSetting } = require('./settings');
-const { saveReportFile, addGeneratedReport, listReports, getReportById } = require('./reports');
-const { createAlert, listAlerts, updateAlertStatus } = require('./alerts');
+const { storeSnapshot, computeShiftDate } = require("./snapshots");
+const { getShiftSummary, getPeakHour } = require("./buckets");
+const { getCallflowHourly, getCallflowPeakHour } = require("./callflow");
+const {
+  listTables,
+  getTableInfo,
+  queryTable,
+  prepareClear,
+  confirmClear,
+} = require("./adminExplorer");
+const { getSettings, upsertSetting } = require("./settings");
+const {
+  saveReportFile,
+  addGeneratedReport,
+  listReports,
+  getReportById,
+} = require("./reports");
+const { createAlert, listAlerts, updateAlertStatus } = require("./alerts");
+const {
+  getLatestRawSnapshotForShift,
+  getRawSnapshotsForShift,
+  getCallflowHourlyRange,
+  getCallflowHourlyForDates,
+  getRecentCallflowSnapshots,
+  listShiftDates,
+  getShiftDatesInRange,
+  getCampaignSnapshotStats,
+  getAgentSnapshotStats,
+  getAgentStateTransitions,
+  getShiftComparisons,
+} = require("./intelligence");
 
 module.exports = {
   // ingest
@@ -37,6 +61,18 @@ module.exports = {
   // alerts
   createAlert,
   listAlerts,
-  updateAlertStatus
-};
+  updateAlertStatus,
 
+  // intelligence helpers
+  getLatestRawSnapshotForShift,
+  getRawSnapshotsForShift,
+  getCallflowHourlyRange,
+  getCallflowHourlyForDates,
+  getRecentCallflowSnapshots,
+  listShiftDates,
+  getShiftDatesInRange,
+  getCampaignSnapshotStats,
+  getAgentSnapshotStats,
+  getAgentStateTransitions,
+  getShiftComparisons,
+};

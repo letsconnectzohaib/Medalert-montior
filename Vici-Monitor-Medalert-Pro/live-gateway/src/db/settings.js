@@ -52,6 +52,11 @@ async function getSettings() {
       dropPercentMin: 3,
       dropPercentCooldownSeconds: 900,
 
+      // proactive staffing (Phase 1)
+      staffingGapMin: 5,
+      staffingSustainSeconds: 120,
+      staffingCooldownSeconds: 900,
+
       // notifications (dashboard consumes these)
       notifyToast: true,
       notifySound: false

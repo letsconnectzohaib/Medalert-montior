@@ -73,6 +73,19 @@ REST
          ]
        }
 
+  GET  /api/intelligence/insights?date=YYYY-MM-DD
+    headers: Authorization: Bearer <jwt>
+    -> {
+         success: true,
+         shiftDate: "YYYY-MM-DD",
+         window: { startShiftDate: "YYYY-MM-DD", endShiftDate: "YYYY-MM-DD" },
+         insights: [
+           { kind: "first_hour_rush", ok: true, isRush?: boolean, intensityPct?: number, detail?: string, note?: string },
+           { kind: "peak_hour_consistency", ok: true, peakHour?: number, confidencePct?: number, window?: {...}, note?: string },
+           { kind: "proactive_staffing", ok: true, risk?: "NORMAL"|"ELEVATED"|"HIGH", suggestedAgents?: number|null, message?: string, context?: {...} }
+         ]
+       }
+
   GET  /api/reports/shift?date=YYYY-MM-DD
     headers: Authorization: Bearer <jwt>
     -> (HTML) Printable shift report (KPIs + hourly tables + rollups)
@@ -97,6 +110,11 @@ REST
   GET  /api/alerts?shiftDate=YYYY-MM-DD&status=open&severity=warn&limit=200
     headers: Authorization: Bearer <jwt>
     -> { success: true, alerts: [ { id, ts, shift_date, type, severity, title, details, status, acked_at, resolved_at }, ... ] }
+    alert types include:
+      - waiting_spike
+      - purple_overload
+      - drop_percent_jump
+      - staffing_shortage  (Phase 1 proactive staffing)
 
   POST /api/alerts/:id/action
     headers: Authorization: Bearer <jwt>

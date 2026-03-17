@@ -6,6 +6,7 @@ import { renderReports } from './pages/reports.js';
 import { renderAlerts } from './pages/alerts.js';
 import { renderSettings } from './pages/settings.js';
 import { renderAdvancedDb } from './pages/advancedDb.js';
+import { renderIntelligence } from './pages/intelligence.js';
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -35,6 +36,8 @@ export function createApp(root) {
     ws: null,
     latestSnapshot: null,
     wsStatus: 'disconnected',
+    // recent points for mini-trends on Overview (live stream)
+    recentPoints: [],
     // caches for DB-driven pages so they don't disappear on live updates
     shiftIntelCache: null,
     adminSettingsCache: null,
@@ -95,7 +98,8 @@ export function createApp(root) {
 
   function getPageFromUrl() {
     const h = String(window.location.hash || '').replace(/^#/, '').trim();
-    if (h === 'overview' || h === 'shift' || h === 'reports' || h === 'alerts' || h === 'settings' || h === 'advanced') return h;
+    if (h === 'overview' || h === 'shift' || h === 'intelligence' || h === 'reports' || h === 'alerts' || h === 'settings' || h === 'advanced')
+      return h;
     return null;
   }
 
@@ -123,6 +127,22 @@ export function createApp(root) {
       }
       if (msg.type === 'snapshot' && msg.snapshot) {
         state.latestSnapshot = msg.snapshot;
+        // Collect mini-trend points (in-memory only).
+        try {
+          const s = msg.snapshot?.summary || {};
+          const agents = Array.isArray(msg.snapshot?.agents) ? msg.snapshot.agents : [];
+          let purple = 0;
+          for (const a of agents) if (a?.stateBucket === 'oncall_gt_5m') purple += 1;
+          const p = {
+            ts: msg.snapshot?.timestamp || new Date().toISOString(),
+            active: Number(s.activeCalls || 0),
+            waiting: Number(s.callsWaiting || 0),
+            purple: Number(purple || 0)
+          };
+          state.recentPoints.push(p);
+          if (state.recentPoints.length > 90) state.recentPoints.shift();
+        } catch {}
+
         // Live snapshots should NOT force a full app re-render.
         // Only update badges, and if user is on Overview update overview widgets.
         updateBadges();
@@ -251,6 +271,7 @@ export function createApp(root) {
     dom.sidebarNav = el('div', { class: 'sbNav' }, [
       el('button', { id: 'nav_overview', type: 'button', class: 'sbLink', onclick: () => setPage('overview') }, ['Overview']),
       el('button', { id: 'nav_shift', type: 'button', class: 'sbLink', onclick: () => setPage('shift') }, ['Shift analytics']),
+      el('button', { id: 'nav_intelligence', type: 'button', class: 'sbLink', onclick: () => setPage('intelligence') }, ['Intelligence']),
       el('button', { id: 'nav_reports', type: 'button', class: 'sbLink', onclick: () => setPage('reports') }, ['Reports']),
       el('button', { id: 'nav_alerts', type: 'button', class: 'sbLink', onclick: () => setPage('alerts') }, ['Alerts']),
       el('button', { id: 'nav_settings', type: 'button', class: 'sbLink', onclick: () => setPage('settings') }, ['Settings']),
@@ -294,6 +315,8 @@ export function createApp(root) {
         ? 'nav_overview'
         : state.page === 'shift'
           ? 'nav_shift'
+          : state.page === 'intelligence'
+            ? 'nav_intelligence'
           : state.page === 'reports'
             ? 'nav_reports'
             : state.page === 'alerts'
@@ -335,6 +358,8 @@ export function createApp(root) {
         ? 'Overview'
         : state.page === 'shift'
           ? 'Shift analytics'
+          : state.page === 'intelligence'
+            ? 'Intelligence'
           : state.page === 'reports'
             ? 'Reports'
             : state.page === 'alerts'
@@ -345,6 +370,8 @@ export function createApp(root) {
         ? 'Live operations from streaming snapshots.'
         : state.page === 'shift'
           ? 'DB-driven hourly buckets, peak hour, and purple/blue distributions.'
+          : state.page === 'intelligence'
+            ? 'Actionable insights generated from historical + live data.'
           : state.page === 'reports'
             ? 'Generate printable shift reports and exports.'
             : state.page === 'alerts'
@@ -367,6 +394,7 @@ export function createApp(root) {
     }
     if (state.page === 'overview') dom.pageContainer.appendChild(renderOverview(state));
     if (state.page === 'shift') dom.pageContainer.appendChild(renderShiftAnalytics(state));
+    if (state.page === 'intelligence') dom.pageContainer.appendChild(renderIntelligence(state));
     if (state.page === 'reports') dom.pageContainer.appendChild(renderReports(state));
     if (state.page === 'alerts') dom.pageContainer.appendChild(renderAlerts(state));
     if (state.page === 'settings')

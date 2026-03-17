@@ -43,6 +43,142 @@ function setText(id, value) {
   return true;
 }
 
+function setAttr(id, name, value) {
+  const el = document.getElementById(id);
+  if (!el) return false;
+  const next = String(value ?? '');
+  if (el.getAttribute(name) !== next) el.setAttribute(name, next);
+  return true;
+}
+
+function sparkPath(points, width = 220, height = 44, pad = 6) {
+  const vals = points.map((p) => Number(p || 0));
+  if (!vals.length) return '';
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = Math.max(1, max - min);
+  const n = Math.max(1, vals.length - 1);
+  const xFor = (i) => pad + ((width - pad * 2) * i) / n;
+  const yFor = (v) => height - pad - ((height - pad * 2) * (v - min)) / span;
+  return vals.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i).toFixed(1)} ${yFor(v).toFixed(1)}`).join(' ');
+}
+
+function sparkPoints(points, width = 220, height = 44, pad = 6) {
+  const vals = points.map((p) => Number(p?.v ?? 0));
+  if (!vals.length) return [];
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = Math.max(1, max - min);
+  const n = Math.max(1, vals.length - 1);
+  const xFor = (i) => pad + ((width - pad * 2) * i) / n;
+  const yFor = (v) => height - pad - ((height - pad * 2) * (v - min)) / span;
+  return points.map((p, i) => ({ x: xFor(i), y: yFor(Number(p?.v ?? 0)), ts: p.ts, v: Number(p?.v ?? 0) }));
+}
+
+function parseIsoMs(ts) {
+  const ms = Date.parse(String(ts || ''));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+const TREND_LS_KEY = 'vmp_trend_window_min';
+
+function getTrendWindowMinutes() {
+  try {
+    const raw = localStorage.getItem(TREND_LS_KEY);
+    const n = Number(raw || 15);
+    if (n === 15 || n === 30 || n === 60) return n;
+  } catch {}
+  return 15;
+}
+
+function setTrendWindowMinutes(min) {
+  try {
+    localStorage.setItem(TREND_LS_KEY, String(min));
+  } catch {}
+}
+
+function filterWindow(points, windowMinutes = 15) {
+  const now = Date.now();
+  const cutoff = now - windowMinutes * 60 * 1000;
+  return (points || []).filter((p) => {
+    const ms = parseIsoMs(p.ts);
+    return ms != null && ms >= cutoff && ms <= now + 60 * 1000;
+  });
+}
+
+function patchSpark(svgId, pathId, dotsId, points, stroke) {
+  // Path
+  const d = sparkPath(points.map((p) => p.v));
+  setAttr(pathId, 'd', d);
+
+  // Dots + tooltips
+  const host = document.getElementById(dotsId);
+  if (!host) return;
+  // Replace children if count changed; otherwise patch attributes/text.
+  const pts = sparkPoints(points);
+  if (host.childElementCount !== pts.length) {
+    host.replaceChildren();
+    for (const p of pts) {
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('r', '2.6');
+      c.setAttribute('fill', stroke);
+      c.setAttribute('opacity', '0.9');
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      t.textContent = `${p.ts} • ${p.v}`;
+      c.appendChild(t);
+      host.appendChild(c);
+    }
+  }
+  const children = Array.from(host.children);
+  for (let i = 0; i < Math.min(children.length, pts.length); i++) {
+    const c = children[i];
+    const p = pts[i];
+    if (c.getAttribute('cx') !== p.x.toFixed(1)) c.setAttribute('cx', p.x.toFixed(1));
+    if (c.getAttribute('cy') !== p.y.toFixed(1)) c.setAttribute('cy', p.y.toFixed(1));
+    const title = c.querySelector('title');
+    const titleText = `${p.ts} • ${p.v}`;
+    if (title && title.textContent !== titleText) title.textContent = titleText;
+  }
+}
+
+function patchTrends(state) {
+  const all = Array.isArray(state.recentPoints) ? state.recentPoints : [];
+  const win = getTrendWindowMinutes();
+  const pts = filterWindow(all, win);
+  if (!pts.length) {
+    setText('ov_tr_note', 'Waiting for trend data…');
+    return;
+  }
+  const last = pts[pts.length - 1] || {};
+  setText('ov_tr_active', last.active ?? 0);
+  setText('ov_tr_wait', last.waiting ?? 0);
+  setText('ov_tr_purple', last.purple ?? 0);
+
+  patchSpark(
+    'ov_svg_active',
+    'ov_sp_active',
+    'ov_dots_active',
+    pts.map((p) => ({ ts: p.ts, v: p.active })),
+    '#34d399'
+  );
+  patchSpark(
+    'ov_svg_wait',
+    'ov_sp_wait',
+    'ov_dots_wait',
+    pts.map((p) => ({ ts: p.ts, v: p.waiting })),
+    '#60a5fa'
+  );
+  patchSpark(
+    'ov_svg_purple',
+    'ov_sp_purple',
+    'ov_dots_purple',
+    pts.map((p) => ({ ts: p.ts, v: p.purple })),
+    '#8b5cf6'
+  );
+
+  setText('ov_tr_note', `Last ${win} minutes • ${pts.length} points (in-memory)`);
+}
+
 // Patch Overview in-place (no re-render). Returns true if Overview DOM exists.
 export function patchOverviewDom(state) {
   const snap = state.latestSnapshot;
@@ -77,6 +213,7 @@ export function patchOverviewDom(state) {
     setText(`ov_bucket_${bucket}`, counts[bucket] || 0);
   }
 
+  patchTrends(state);
   return true;
 }
 
@@ -125,6 +262,38 @@ export function renderOverview(state) {
     ])
   ]);
 
+  const pts = Array.isArray(state.recentPoints) ? state.recentPoints : [];
+  const last = pts[pts.length - 1] || {};
+  const trends = el('section', { class: 'card wide' }, [
+    el('div', { class: 'trendTop', style: 'margin-bottom:10px' }, [
+      el('div', { class: 'cardTitle', style: 'margin:0' }, ['Trends (live)']),
+      el(
+        'select',
+        {
+          id: 'ov_tr_window',
+          class: 'inputLike',
+          onchange: () => {
+            const sel = document.getElementById('ov_tr_window');
+            const v = Number(sel?.value || 15);
+            setTrendWindowMinutes(v);
+            patchTrends(state);
+          }
+        },
+        [
+          el('option', { value: '15' }, ['15m']),
+          el('option', { value: '30' }, ['30m']),
+          el('option', { value: '60' }, ['60m'])
+        ]
+      )
+    ]),
+    el('div', { class: 'trendGrid' }, [
+      trendCard('Active calls', last.active ?? 0, 'ov_tr_active', 'ov_sp_active', '#34d399'),
+      trendCard('Calls waiting', last.waiting ?? 0, 'ov_tr_wait', 'ov_sp_wait', '#60a5fa'),
+      trendCard('Purple agents', last.purple ?? 0, 'ov_tr_purple', 'ov_sp_purple', '#8b5cf6')
+    ]),
+    el('div', { id: 'ov_tr_note', class: 'note' }, [''])
+  ]);
+
   const buckets = el('section', { class: 'card wide' }, [
     el('div', { class: 'cardTitle' }, ['Agent state buckets']),
     el(
@@ -135,7 +304,13 @@ export function renderOverview(state) {
     el('div', { class: 'note' }, ['Counts computed from snapshot.agents[].stateBucket.'])
   ]);
 
-  return el('div', { id: 'ov_root', class: 'grid' }, [summary, meta, buckets]);
+  // Ensure trends are drawn on first render as well.
+  setTimeout(() => {
+    const sel = document.getElementById('ov_tr_window');
+    if (sel) sel.value = String(getTrendWindowMinutes());
+    patchTrends(state);
+  }, 0);
+  return el('div', { id: 'ov_root', class: 'grid' }, [summary, meta, trends, buckets]);
 }
 
 function metric(label, value, valueId) {
@@ -149,6 +324,30 @@ function kv(label, value, valueId) {
   return el('div', { class: 'kv' }, [
     el('div', { class: 'k' }, [label]),
     el('div', { id: valueId, class: 'v' }, [String(value)])
+  ]);
+}
+
+function trendCard(label, value, valueId, pathId, stroke) {
+  // sparkline SVG (path 'd' is patched in patchTrends)
+  const width = 220;
+  const height = 44;
+  const svgId =
+    pathId === 'ov_sp_active' ? 'ov_svg_active' : pathId === 'ov_sp_wait' ? 'ov_svg_wait' : 'ov_svg_purple';
+  const dotsId =
+    pathId === 'ov_sp_active'
+      ? 'ov_dots_active'
+      : pathId === 'ov_sp_wait'
+        ? 'ov_dots_wait'
+        : 'ov_dots_purple';
+  return el('div', { class: 'trendCard' }, [
+    el('div', { class: 'trendTop' }, [
+      el('div', { class: 'trendLabel' }, [label]),
+      el('div', { id: valueId, class: 'trendValue' }, [String(value)])
+    ]),
+    el('svg', { id: svgId, class: 'spark', width: String(width), height: String(height), viewBox: `0 0 ${width} ${height}` }, [
+      el('path', { id: pathId, d: '', fill: 'none', stroke, 'stroke-width': '2', 'stroke-linecap': 'round' }, []),
+      el('g', { id: dotsId }, [])
+    ])
   ]);
 }
 

@@ -32,6 +32,9 @@
 - Added **Call-flow analytics**:
   - New `GET /api/shift/callflow` returning per-hour active/waiting/ivr/ringing series + rollups + peak-waiting hour
   - Dashboard Shift Analytics now shows an additional call-flow chart and rollup cards
+- Started **Intelligence (Phase 1 docs)**:
+  - Added `docs/intelligence/ROADMAP.md` and `docs/intelligence/PHASE_1.md`
+  - Added API contract for `GET /api/intelligence/insights`
 - Added **Shift Report (HTML)**:
   - New `GET /api/reports/shift` to generate a printable HTML shift report
   - Dashboard now includes a **Reports** page to open or download the report
@@ -40,6 +43,7 @@
   - PDF endpoint placeholder: `GET /api/reports/shift.pdf` returns 501 until enabled
 - Added **Alerts / Anomalies**:
   - Auto-detects: waiting spikes, sustained purple overload, and drop% jumps during ingest
+  - Added proactive staffing alert: waiting calls outpace ready agents (sustained + cooldown)
   - Thresholds + dashboard notifications are configurable via gateway settings (`settings.alerts`)
   - Adds correlation hints in alert details (probable cause signals)
   - Live notifications are broadcast over WS (`type: "alert"`) with optional toast/sound
