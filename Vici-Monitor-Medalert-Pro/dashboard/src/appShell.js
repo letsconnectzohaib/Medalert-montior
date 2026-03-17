@@ -37,7 +37,8 @@ export function createApp(root) {
     wsStatus: 'disconnected',
     // caches for DB-driven pages so they don't disappear on live updates
     shiftIntelCache: null,
-    adminSettingsCache: null
+    adminSettingsCache: null,
+    hardReloadWarning: null
   };
 
   const dom = {
@@ -164,6 +165,22 @@ export function createApp(root) {
   }
 
   async function restore() {
+    // Detect frequent hard reloads (full tab refresh). This cannot be caused by SPA rendering.
+    // If you see this warning, check your hosting tool (Live Server auto-reload) or browser extensions.
+    try {
+      const nav = performance.getEntriesByType?.('navigation')?.[0];
+      const isReload = nav?.type === 'reload';
+      const key = 'vmp_hard_reload_ts';
+      const now = Date.now();
+      const arr = JSON.parse(localStorage.getItem(key) || '[]').filter((t) => now - t < 60_000);
+      if (isReload) arr.push(now);
+      localStorage.setItem(key, JSON.stringify(arr.slice(-20)));
+      if (arr.length >= 4) {
+        state.hardReloadWarning =
+          'Detected frequent FULL tab reloads. This is usually caused by Live Server auto-reload or a browser auto-refresh extension (not by WS snapshots).';
+      }
+    } catch {}
+
     const s = loadSession();
     state.baseUrl = normalizeBaseUrl(s.gatewayUrl);
     state.token = s.token;
@@ -337,6 +354,17 @@ export function createApp(root) {
             : 'Inspect database tables, explore raw snapshots, and perform safe maintenance actions.';
 
     dom.pageContainer.replaceChildren();
+    if (state.hardReloadWarning) {
+      dom.pageContainer.appendChild(
+        el('section', { class: 'card wide' }, [
+          el('div', { class: 'cardTitle' }, ['Reload warning']),
+          el('div', { class: 'note' }, [state.hardReloadWarning]),
+          el('div', { class: 'note' }, [
+            'If you are running the dashboard with VSCode Live Server / Live Preview, try disabling auto-reload. Also check Chrome extensions like “Auto Refresh”.'
+          ])
+        ])
+      );
+    }
     if (state.page === 'overview') dom.pageContainer.appendChild(renderOverview(state));
     if (state.page === 'shift') dom.pageContainer.appendChild(renderShiftAnalytics(state));
     if (state.page === 'reports') dom.pageContainer.appendChild(renderReports(state));
