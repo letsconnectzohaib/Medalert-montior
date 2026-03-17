@@ -1,72 +1,140 @@
-import { loadSession, saveSession, clearSession, savePage } from './storage.js';
-import { login as apiLogin, pingGateway, wsUrl, normalizeBaseUrl, getAdminSettings } from './apiClient.js';
-import { renderOverview, patchOverviewDom } from './pages/overview.js';
-import { renderShiftAnalytics } from './pages/shiftAnalytics.js';
-import { renderReports } from './pages/reports.js';
-import { renderAlerts } from './pages/alerts.js';
-import { renderSettings } from './pages/settings.js';
-import { renderAdvancedDb } from './pages/advancedDb.js';
-import { renderIntelligence } from './pages/intelligence.js';
+import { loadSession, saveSession, clearSession, savePage } from "./storage.js";
+import {
+  login as apiLogin,
+  pingGateway,
+  normalizeBaseUrl,
+} from "./apiClient.js";
+import {
+  PAGE_GROUPS,
+  getDefaultPage,
+  getPageMeta,
+  isKnownPage,
+} from "./config/navigation.js";
+import { renderOverview, patchOverviewDom } from "./pages/overview.js";
+import { renderShiftAnalytics } from "./pages/shiftAnalytics.js";
+import { renderReports } from "./pages/reports.js";
+import { renderAlerts } from "./pages/alerts.js";
+import { renderSettings } from "./pages/settings.js";
+import { renderAdvancedDb } from "./pages/advancedDb.js";
+import { renderIntelligence } from "./pages/intelligence.js";
+import { el } from "./ui/dom.js";
+import {
+  setBadge,
+  createBrandBlock,
+  createSidebar,
+  createTopStatusBadges,
+  createPageHeader,
+  createShellLayout,
+  createToastHost,
+  createSidebarFooter,
+  updateSidebarActive,
+  updateGatewayText,
+} from "./ui/shell.js";
+import {
+  createDomState,
+  createInitialState,
+  createRuntimeHelpers,
+} from "./app/runtime.js";
 
-function el(tag, attrs = {}, children = []) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') node.className = v;
-    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
-    else node.setAttribute(k, String(v));
-  }
-  for (const c of children) node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
-  return node;
+function getPageIdFromHash() {
+  const raw = String(window.location.hash || "")
+    .replace(/^#/, "")
+    .trim();
+  return isKnownPage(raw) ? raw : null;
 }
 
-function setBadge(container, id, kind, text) {
-  const badge = container.querySelector(`#${id}`) || el('span', { id, class: 'badge warn' });
-  badge.classList.remove('good', 'warn', 'bad');
-  badge.classList.add(kind);
-  badge.textContent = text;
-  if (!badge.parentElement) container.appendChild(badge);
+function getPageMetaSafe(pageId) {
+  return (
+    getPageMeta(pageId) ||
+    getPageMeta(getDefaultPage()) || {
+      id: getDefaultPage(),
+      label: "Dashboard",
+      description: "",
+    }
+  );
+}
+
+function createLoginCard(root, state, onSignedIn) {
+  return (async () => {
+    const gatewayOk = await pingGateway(state.baseUrl);
+    const card = el("div", { class: "loginCard" }, [
+      el("div", { class: "loginTitle" }, ["Sign in"]),
+      el("div", { class: "loginSub" }, [
+        "Login to view live operations, intelligence, and reporting.",
+      ]),
+      el("div", { class: "hr" }, []),
+      el("div", { class: "loginGrid" }, [
+        el("label", {}, ["Gateway URL"]),
+        el("input", { id: "lg_gateway", value: state.baseUrl }),
+      ]),
+      el("div", { class: "loginGrid" }, [
+        el("label", {}, ["Username"]),
+        el("input", { id: "lg_user", value: "admin" }),
+      ]),
+      el("div", { class: "loginGrid" }, [
+        el("label", {}, ["Password"]),
+        el("input", { id: "lg_pass", type: "password", value: "admin123" }),
+      ]),
+      el("div", { class: "actions" }, [
+        el(
+          "button",
+          {
+            class: "btn primary",
+            onclick: async () => {
+              const baseUrl = normalizeBaseUrl(
+                root.querySelector("#lg_gateway")?.value,
+              );
+              const username = root.querySelector("#lg_user")?.value?.trim();
+              const password = root.querySelector("#lg_pass")?.value;
+              const msg = root.querySelector("#lg_msg");
+              if (msg) msg.textContent = "";
+              state.baseUrl = baseUrl;
+              const res = await apiLogin(baseUrl, username, password);
+              if (!res.success) {
+                if (msg) msg.textContent = res.error || "Login failed.";
+                return;
+              }
+              saveSession({
+                gatewayUrl: baseUrl,
+                token: res.token,
+                user: res.user,
+              });
+              await onSignedIn({ baseUrl, token: res.token, user: res.user });
+            },
+          },
+          ["Sign in"],
+        ),
+        el(
+          "button",
+          { class: "btn", onclick: () => window.location.reload() },
+          ["Reload"],
+        ),
+      ]),
+      el("div", { id: "lg_msg", class: "msg" }, [
+        gatewayOk ? "" : "Gateway is offline/unreachable.",
+      ]),
+    ]);
+    return el("div", { class: "loginWrap" }, [card]);
+  })();
 }
 
 export function createApp(root) {
-  const state = {
-    page: 'overview',
-    baseUrl: 'http://localhost:3100',
-    token: null,
-    user: null,
-    ws: null,
-    latestSnapshot: null,
-    wsStatus: 'disconnected',
-    // recent points for mini-trends on Overview (live stream)
-    recentPoints: [],
-    // caches for DB-driven pages so they don't disappear on live updates
-    shiftIntelCache: null,
-    adminSettingsCache: null,
-    hardReloadWarning: null
-  };
+  const state = createInitialState();
+  const dom = createDomState();
 
-  const dom = {
-    shell: null,
-    sidebarNav: null,
-    content: null,
-    badges: null,
-    pageContainer: null,
-    pageTitle: null,
-    pageDesc: null
-  };
-
-  function beep(kind = 'warn') {
+  function beep(kind = "warn") {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = kind === 'bad' ? 660 : 440;
-      g.gain.value = 0.05;
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.start();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value = kind === "bad" ? 660 : 440;
+      gain.gain.value = 0.05;
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
       setTimeout(() => {
-        o.stop();
+        oscillator.stop();
         ctx.close();
       }, 140);
     } catch {
@@ -74,367 +142,199 @@ export function createApp(root) {
     }
   }
 
-  function toast(text, kind = 'warn') {
-    const host = dom.shell?.querySelector('#toastHost');
+  function toast(text, kind = "warn") {
+    const host = dom.shell?.querySelector("#toastHost");
     if (!host) return;
-    const t = el('div', { class: `toast ${kind}` }, [text]);
-    host.appendChild(t);
-    setTimeout(() => t.classList.add('show'), 10);
+    const node = el("div", { class: `toast ${kind}` }, [text]);
+    host.appendChild(node);
+    setTimeout(() => node.classList.add("show"), 10);
     setTimeout(() => {
-      t.classList.remove('show');
-      setTimeout(() => t.remove(), 250);
+      node.classList.remove("show");
+      setTimeout(() => node.remove(), 250);
     }, 3500);
-  }
-
-  function setPage(p) {
-    state.page = p;
-    savePage(p);
-    // Keep URL stable for refreshes without forcing a reload.
-    history.replaceState(null, '', `#${p}`);
-    renderPage();
-    updateBadges();
-    updateNavActive();
-  }
-
-  function getPageFromUrl() {
-    const h = String(window.location.hash || '').replace(/^#/, '').trim();
-    if (h === 'overview' || h === 'shift' || h === 'intelligence' || h === 'reports' || h === 'alerts' || h === 'settings' || h === 'advanced')
-      return h;
-    return null;
-  }
-
-  function connectWs() {
-    if (!state.token) return;
-    if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) return;
-
-    const ws = new WebSocket(wsUrl(state.baseUrl));
-    state.ws = ws;
-    state.wsStatus = 'connecting';
-    updateBadges();
-
-    ws.onopen = () => {
-      state.wsStatus = 'connected';
-      ws.send(JSON.stringify({ type: 'subscribe', token: state.token }));
-      updateBadges();
-    };
-
-    ws.onmessage = (evt) => {
-      let msg = null;
-      try {
-        msg = JSON.parse(evt.data);
-      } catch {
-        return;
-      }
-      if (msg.type === 'snapshot' && msg.snapshot) {
-        state.latestSnapshot = msg.snapshot;
-        // Collect mini-trend points (in-memory only).
-        try {
-          const s = msg.snapshot?.summary || {};
-          const agents = Array.isArray(msg.snapshot?.agents) ? msg.snapshot.agents : [];
-          let purple = 0;
-          for (const a of agents) if (a?.stateBucket === 'oncall_gt_5m') purple += 1;
-          const p = {
-            ts: msg.snapshot?.timestamp || new Date().toISOString(),
-            active: Number(s.activeCalls || 0),
-            waiting: Number(s.callsWaiting || 0),
-            purple: Number(purple || 0)
-          };
-          state.recentPoints.push(p);
-          if (state.recentPoints.length > 90) state.recentPoints.shift();
-        } catch {}
-
-        // Live snapshots should NOT force a full app re-render.
-        // Only update badges, and if user is on Overview update overview widgets.
-        updateBadges();
-        if (state.page === 'overview') {
-          const patched = patchOverviewDom(state);
-          if (!patched) renderPage(); // first render or after navigation
-        }
-      }
-      if (msg.type === 'alert' && msg.alert) {
-        updateBadges();
-        const a = msg.alert;
-        const cfg = state.adminSettingsCache?.alerts || {};
-        if (cfg.notifyToast) toast(`${a.title || 'Alert'}`, a.severity || 'warn');
-        if (cfg.notifySound) beep(a.severity || 'warn');
-      }
-      if (msg.type === 'error' && msg.error === 'unauthorized') {
-        state.wsStatus = 'unauthorized';
-        updateBadges();
-      }
-    };
-
-    ws.onclose = () => {
-      state.wsStatus = 'disconnected';
-      updateBadges();
-      setTimeout(connectWs, 1500);
-    };
-  }
-
-  function logout() {
-    state.token = null;
-    state.user = null;
-    clearSession();
-    try {
-      state.ws?.close();
-    } catch {}
-    state.ws = null;
-    state.latestSnapshot = null;
-    state.wsStatus = 'disconnected';
-    render();
-  }
-
-  async function restore() {
-    // Detect frequent hard reloads (full tab refresh). This cannot be caused by SPA rendering.
-    // If you see this warning, check your hosting tool (Live Server auto-reload) or browser extensions.
-    try {
-      const nav = performance.getEntriesByType?.('navigation')?.[0];
-      const isReload = nav?.type === 'reload';
-      const key = 'vmp_hard_reload_ts';
-      const now = Date.now();
-      const arr = JSON.parse(localStorage.getItem(key) || '[]').filter((t) => now - t < 60_000);
-      if (isReload) arr.push(now);
-      localStorage.setItem(key, JSON.stringify(arr.slice(-20)));
-      if (arr.length >= 4) {
-        state.hardReloadWarning =
-          'Detected frequent FULL tab reloads. This is usually caused by Live Server auto-reload or a browser auto-refresh extension (not by WS snapshots).';
-      }
-    } catch {}
-
-    const s = loadSession();
-    state.baseUrl = normalizeBaseUrl(s.gatewayUrl);
-    state.token = s.token;
-    state.user = s.user;
-    state.page = getPageFromUrl() || s.page || 'overview';
-    savePage(state.page);
-    if (state.token) connectWs();
-    if (state.token) {
-      try {
-        const r = await getAdminSettings(state.baseUrl, state.token);
-        if (r.success) state.adminSettingsCache = r.settings || {};
-      } catch {}
-    }
-  }
-
-  async function renderLogin() {
-    const gatewayOk = await pingGateway(state.baseUrl);
-    const card = el('div', { class: 'loginCard' }, [
-      el('div', { class: 'loginTitle' }, ['Sign in']),
-      el('div', { class: 'loginSub' }, ['Login to view live operations and shift analytics.']),
-      el('div', { class: 'hr' }),
-      el('div', { class: 'loginGrid' }, [
-        el('label', {}, ['Gateway URL']),
-        el('input', { id: 'lg_gateway', value: state.baseUrl })
-      ]),
-      el('div', { class: 'loginGrid' }, [
-        el('label', {}, ['Username']),
-        el('input', { id: 'lg_user', value: 'admin' })
-      ]),
-      el('div', { class: 'loginGrid' }, [
-        el('label', {}, ['Password']),
-        el('input', { id: 'lg_pass', type: 'password', value: 'admin123' })
-      ]),
-      el('div', { class: 'actions' }, [
-        el('button', {
-          class: 'btn primary',
-          onclick: async () => {
-            const baseUrl = normalizeBaseUrl(root.querySelector('#lg_gateway')?.value);
-            const username = root.querySelector('#lg_user')?.value?.trim();
-            const password = root.querySelector('#lg_pass')?.value;
-            const msg = root.querySelector('#lg_msg');
-            msg.textContent = '';
-            state.baseUrl = baseUrl;
-            const res = await apiLogin(baseUrl, username, password);
-            if (!res.success) {
-              msg.textContent = res.error || 'Login failed.';
-              return;
-            }
-            state.token = res.token;
-            state.user = res.user;
-            saveSession({ gatewayUrl: baseUrl, token: res.token, user: res.user });
-            connectWs();
-            render();
-          }
-        }, ['Sign in']),
-        el('button', { class: 'btn', onclick: () => window.location.reload() }, ['Reload'])
-      ]),
-      el('div', { id: 'lg_msg', class: 'msg' }, [gatewayOk ? '' : 'Gateway is offline/unreachable.'])
-    ]);
-    root.replaceChildren(el('div', { class: 'loginWrap' }, [card]));
-  }
-
-  function ensureShell() {
-    if (dom.shell) return;
-
-    dom.badges = el('div', { class: 'topBadges' });
-
-    dom.sidebarNav = el('div', { class: 'sbNav' }, [
-      el('button', { id: 'nav_overview', type: 'button', class: 'sbLink', onclick: () => setPage('overview') }, ['Overview']),
-      el('button', { id: 'nav_shift', type: 'button', class: 'sbLink', onclick: () => setPage('shift') }, ['Shift analytics']),
-      el('button', { id: 'nav_intelligence', type: 'button', class: 'sbLink', onclick: () => setPage('intelligence') }, ['Intelligence']),
-      el('button', { id: 'nav_reports', type: 'button', class: 'sbLink', onclick: () => setPage('reports') }, ['Reports']),
-      el('button', { id: 'nav_alerts', type: 'button', class: 'sbLink', onclick: () => setPage('alerts') }, ['Alerts']),
-      el('button', { id: 'nav_settings', type: 'button', class: 'sbLink', onclick: () => setPage('settings') }, ['Settings']),
-      el('button', { id: 'nav_advanced', type: 'button', class: 'sbLink', onclick: () => setPage('advanced') }, ['Advanced'])
-    ]);
-
-    const sidebar = el('aside', { class: 'sidebar' }, [
-      el('div', {}, [
-        el('div', { class: 'sbBrand' }, ['Vicidial Monitor Pro']),
-        el('div', { class: 'sbSub' }, ['Operations intelligence'])
-      ]),
-      dom.sidebarNav,
-      el('div', { class: 'sbFooter' }, [
-        el('div', { id: 'sb_gateway' }, [`Gateway: ${state.baseUrl}`]),
-        el('button', { type: 'button', class: 'btn', onclick: logout }, ['Sign out'])
-      ])
-    ]);
-
-    dom.pageTitle = el('div', { class: 'pageTitle' }, ['Overview']);
-    dom.pageDesc = el('div', { class: 'pageDesc' }, ['']);
-
-    const header = el('div', { class: 'pageHeader' }, [
-      el('div', {}, [dom.pageTitle, dom.pageDesc]),
-      dom.badges
-    ]);
-
-    dom.pageContainer = el('div', { id: 'page_container' }, []);
-    dom.content = el('main', { class: 'content' }, [header, dom.pageContainer]);
-
-    dom.shell = el('div', { class: 'shell' }, [sidebar, dom.content]);
-    const toastHost = el('div', { id: 'toastHost', class: 'toastHost' }, []);
-    dom.shell.appendChild(toastHost);
-    root.replaceChildren(dom.shell);
-  }
-
-  function updateNavActive() {
-    if (!dom.sidebarNav) return;
-    dom.sidebarNav.querySelectorAll('.sbLink').forEach((b) => b.classList.remove('active'));
-    const id =
-      state.page === 'overview'
-        ? 'nav_overview'
-        : state.page === 'shift'
-          ? 'nav_shift'
-          : state.page === 'intelligence'
-            ? 'nav_intelligence'
-          : state.page === 'reports'
-            ? 'nav_reports'
-            : state.page === 'alerts'
-              ? 'nav_alerts'
-          : state.page === 'settings'
-            ? 'nav_settings'
-            : 'nav_advanced';
-    dom.sidebarNav.querySelector(`#${id}`)?.classList.add('active');
-    const g = dom.shell?.querySelector('#sb_gateway');
-    if (g) g.textContent = `Gateway: ${state.baseUrl}`;
   }
 
   function updateBadges() {
     if (!dom.badges) return;
-    dom.badges.innerHTML = '';
-    setBadge(dom.badges, 'auth', 'good', `Auth: ${state.user?.username || 'signed in'}`);
+    dom.badges.innerHTML = "";
     setBadge(
       dom.badges,
-      'ws',
-      state.wsStatus === 'connected' ? 'good' : state.wsStatus === 'unauthorized' ? 'bad' : 'warn',
-      `WS: ${state.wsStatus}`
+      "auth",
+      "good",
+      `Auth: ${state.user?.username || "signed in"}`,
     );
-    setBadge(dom.badges, 'snap', state.latestSnapshot ? 'good' : 'warn', `Last snapshot: ${state.latestSnapshot?.timestamp || '—'}`);
+    setBadge(
+      dom.badges,
+      "ws",
+      state.wsStatus === "connected"
+        ? "good"
+        : state.wsStatus === "unauthorized"
+          ? "bad"
+          : "warn",
+      `WS: ${state.wsStatus}`,
+    );
+    setBadge(
+      dom.badges,
+      "snap",
+      state.latestSnapshot ? "good" : "warn",
+      `Last snapshot: ${state.latestSnapshot?.timestamp || "—"}`,
+    );
   }
 
-  function renderPage() {
-    // Debug: set localStorage.VM_DEBUG_RENDER = "1" to log page renders.
-    try {
-      if (localStorage.getItem('VM_DEBUG_RENDER') === '1') {
-        // eslint-disable-next-line no-console
-        console.debug('[vm] renderPage', { page: state.page, ws: state.wsStatus, ts: new Date().toISOString() });
-      }
-    } catch {}
-    ensureShell();
+  function updateHeaderMeta() {
+    const meta = getPageMetaSafe(state.page);
+    if (dom.pageTitle) dom.pageTitle.textContent = meta.label || "Dashboard";
+    if (dom.pageDesc) dom.pageDesc.textContent = meta.description || "";
+    if (dom.pageEyebrow) {
+      dom.pageEyebrow.textContent = `${meta.groupIcon || "•"} ${meta.groupLabel || "Dashboard"}`;
+    }
+  }
+
+  function updateNavActive() {
+    if (!dom.sidebar) return;
+    updateSidebarActive(dom.sidebar, state.page);
+    updateGatewayText(dom.sidebar, state.baseUrl);
+    updateHeaderMeta();
+  }
+
+  function ensureShell(runtime) {
+    if (dom.shell) return;
+
+    dom.badges = createTopStatusBadges();
+
+    const brand = createBrandBlock({
+      title: "Vicidial Monitor Pro",
+      subtitle: "Realtime ops intelligence",
+      accent: "VM",
+    });
+
+    const footer = createSidebarFooter({
+      gatewayText: state.baseUrl,
+      userText: state.user?.username || "",
+      onLogout: runtime.logout,
+    });
+
+    dom.sidebar = createSidebar(PAGE_GROUPS, {
+      activePage: state.page,
+      brand,
+      footerChildren: footer,
+      onNavigate: (pageId) => runtime.setPage(pageId),
+    });
+
+    dom.pageEyebrow = el("div", { class: "pageEyebrow" }, [""]);
+    dom.pageTitle = el("div", { class: "pageTitle" }, ["Dashboard"]);
+    dom.pageDesc = el("div", { class: "pageDesc" }, [""]);
+    dom.pageContainer = el("div", { id: "page_container" }, []);
+    const toastHost = createToastHost();
+
+    const header = createPageHeader({
+      title: "Dashboard",
+      description: "",
+      eyebrow: "",
+      badgesNode: dom.badges,
+    });
+
+    const layout = createShellLayout({
+      sidebar: dom.sidebar,
+      header,
+      pageContainer: dom.pageContainer,
+      toastHost,
+    });
+
+    dom.shell = layout.shell;
+    root.replaceChildren(dom.shell);
+    updateHeaderMeta();
     updateNavActive();
-
-    dom.pageTitle.textContent =
-      state.page === 'overview'
-        ? 'Overview'
-        : state.page === 'shift'
-          ? 'Shift analytics'
-          : state.page === 'intelligence'
-            ? 'Intelligence'
-          : state.page === 'reports'
-            ? 'Reports'
-            : state.page === 'alerts'
-              ? 'Alerts'
-            : 'Settings';
-    dom.pageDesc.textContent =
-      state.page === 'overview'
-        ? 'Live operations from streaming snapshots.'
-        : state.page === 'shift'
-          ? 'DB-driven hourly buckets, peak hour, and purple/blue distributions.'
-          : state.page === 'intelligence'
-            ? 'Actionable insights generated from historical + live data.'
-          : state.page === 'reports'
-            ? 'Generate printable shift reports and exports.'
-            : state.page === 'alerts'
-              ? 'Detected anomalies and operational alerts.'
-          : state.page === 'settings'
-            ? 'Configure shift timings, persistence, and capture behavior.'
-            : 'Inspect database tables, explore raw snapshots, and perform safe maintenance actions.';
-
-    dom.pageContainer.replaceChildren();
-    if (state.hardReloadWarning) {
-      dom.pageContainer.appendChild(
-        el('section', { class: 'card wide' }, [
-          el('div', { class: 'cardTitle' }, ['Reload warning']),
-          el('div', { class: 'note' }, [state.hardReloadWarning]),
-          el('div', { class: 'note' }, [
-            'If you are running the dashboard with VSCode Live Server / Live Preview, try disabling auto-reload. Also check Chrome extensions like “Auto Refresh”.'
-          ])
-        ])
-      );
-    }
-    if (state.page === 'overview') dom.pageContainer.appendChild(renderOverview(state));
-    if (state.page === 'shift') dom.pageContainer.appendChild(renderShiftAnalytics(state));
-    if (state.page === 'intelligence') dom.pageContainer.appendChild(renderIntelligence(state));
-    if (state.page === 'reports') dom.pageContainer.appendChild(renderReports(state));
-    if (state.page === 'alerts') dom.pageContainer.appendChild(renderAlerts(state));
-    if (state.page === 'settings')
-      dom.pageContainer.appendChild(
-        renderSettings(state, () => {
-          // Settings tabs + local gateway URL changes must rerender the page.
-          // Also ensure WS reconnects if baseUrl changed.
-          connectWs();
-          renderPage();
-          updateBadges();
-          updateNavActive();
-        })
-      );
-    if (state.page === 'advanced') dom.pageContainer.appendChild(renderAdvancedDb(state));
-  }
-
-  function render() {
-    if (!state.token) {
-      renderLogin();
-      return;
-    }
-    renderPage();
     updateBadges();
   }
 
-  window.addEventListener('hashchange', () => {
-    const p = getPageFromUrl();
-    if (p && p !== state.page) {
-      state.page = p;
-      savePage(p);
-      renderPage();
+  function renderPage(runtime) {
+    ensureShell(runtime);
+    updateNavActive();
+
+    dom.pageContainer.replaceChildren();
+
+    if (state.hardReloadWarning) {
+      dom.pageContainer.appendChild(
+        el("section", { class: "card wide" }, [
+          el("div", { class: "cardTitle" }, ["Reload warning"]),
+          el("div", { class: "note" }, [state.hardReloadWarning]),
+          el("div", { class: "note" }, [
+            "If you are using a live-reload server or an auto-refresh browser extension, disable it for the dashboard to avoid hard refresh loops.",
+          ]),
+        ]),
+      );
+    }
+
+    if (state.page === "overview")
+      dom.pageContainer.appendChild(renderOverview(state));
+    if (state.page === "shift")
+      dom.pageContainer.appendChild(renderShiftAnalytics(state));
+    if (state.page === "intelligence")
+      dom.pageContainer.appendChild(renderIntelligence(state));
+    if (state.page === "reports")
+      dom.pageContainer.appendChild(renderReports(state));
+    if (state.page === "alerts")
+      dom.pageContainer.appendChild(renderAlerts(state));
+    if (state.page === "settings") {
+      dom.pageContainer.appendChild(
+        renderSettings(state, () => {
+          runtime.connectWs();
+          renderPage(runtime);
+          updateBadges();
+          updateNavActive();
+        }),
+      );
+    }
+    if (state.page === "advanced")
+      dom.pageContainer.appendChild(renderAdvancedDb(state));
+  }
+
+  function render(runtime) {
+    if (!state.token) {
+      createLoginCard(root, state, async ({ baseUrl, token, user }) => {
+        state.baseUrl = normalizeBaseUrl(baseUrl);
+        state.token = token;
+        state.user = user;
+        runtime.persistLogin({ baseUrl, token, user });
+        runtime.connectWs();
+        render(runtime);
+      }).then((loginNode) => {
+        root.replaceChildren(loginNode);
+      });
+      return;
+    }
+
+    renderPage(runtime);
+    updateBadges();
+  }
+
+  const runtime = createRuntimeHelpers({
+    state,
+    render: () => render(runtime),
+    renderPage: () => renderPage(runtime),
+    updateBadges,
+    updateNavActive,
+    patchOverviewDom,
+    toast,
+    beep,
+  });
+
+  window.addEventListener("hashchange", () => {
+    const nextPage = getPageIdFromHash();
+    if (nextPage && nextPage !== state.page) {
+      state.page = nextPage;
+      savePage(nextPage);
+      renderPage(runtime);
       updateBadges();
       updateNavActive();
     }
   });
 
-  restore().then(() => {
-    // Ensure hash matches restored page.
-    history.replaceState(null, '', `#${state.page}`);
-    render();
+  runtime.restore().then(() => {
+    const restored = isKnownPage(state.page) ? state.page : getDefaultPage();
+    history.replaceState(null, "", `#${restored}`);
+    state.page = restored;
+    render(runtime);
   });
 }
-
