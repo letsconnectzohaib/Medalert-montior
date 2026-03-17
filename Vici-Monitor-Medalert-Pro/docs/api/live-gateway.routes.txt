@@ -15,6 +15,11 @@ REST
     headers: Authorization: Bearer <jwt>
     -> { success: true, user: { username, role, iat, exp } }
 
+  POST /api/live/snapshot
+    headers: Authorization: Bearer <jwt>
+    body: { "snapshot": { ...VicidialSnapshot... } }
+    -> { success: true }
+
 WebSocket
   WS  /ws
 

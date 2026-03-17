@@ -58,6 +58,23 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ success: true, user });
 });
 
+// Extension publishes snapshots over HTTP (Phase 1).
+// Gateways/dashboards can also consume via WS.
+app.post('/api/live/snapshot', (req, res) => {
+  const user = verifyBearerToken(req);
+  if (!user) return res.status(401).json({ success: false });
+  const snapshot = req.body?.snapshot;
+  if (!snapshot) return res.status(400).json({ success: false, error: 'missing_snapshot' });
+
+  latestSnapshot = snapshot;
+
+  for (const client of wss.clients) {
+    if (client.isSubscribed) safeSend(client, { type: 'snapshot', snapshot: latestSnapshot });
+  }
+
+  res.json({ success: true });
+});
+
 // --- WS ---
 
 const server = http.createServer(app);

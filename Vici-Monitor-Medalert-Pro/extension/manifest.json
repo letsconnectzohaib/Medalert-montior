@@ -18,6 +18,12 @@
     "service_worker": "background/service_worker.js",
     "type": "module"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["shared/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": ["https://*/realtime_report.php*", "http://*/realtime_report.php*"],
