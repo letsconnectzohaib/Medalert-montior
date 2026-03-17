@@ -3,89 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vicidial Monitor Pro — Live</title>
+    <title>Vicidial Monitor Pro</title>
     <link rel="stylesheet" href="./styles.css" />
+    <meta http-equiv="refresh" content="0; url=./app.html" />
   </head>
   <body>
-    <div class="app">
-      <header class="topbar">
-        <div class="brand">
-          <div class="name">Vicidial Monitor Pro</div>
-          <div class="tag">Live view (WS) — shift analytics later</div>
+    <div class="loginWrap">
+      <div class="loginCard">
+        <div class="loginTitle">Vicidial Monitor Pro</div>
+        <div class="loginSub">Redirecting to the dashboard…</div>
+        <div class="hr"></div>
+        <div class="note">
+          If you are not redirected automatically, open <a href="./app.html">app.html</a>.
         </div>
-        <div class="badges">
-          <span id="auth" class="badge warn">Auth: signed out</span>
-          <span id="gw" class="badge warn">Gateway: unknown</span>
-          <span id="ws" class="badge warn">WS: disconnected</span>
-          <span id="snap" class="badge warn">Last snapshot: —</span>
-        </div>
-      </header>
-
-      <main class="grid">
-        <section class="card">
-          <div class="cardTitle">Login</div>
-          <div class="formRow">
-            <label>Gateway URL</label>
-            <input id="gatewayUrl" type="text" value="http://localhost:3100" />
-          </div>
-          <div class="formRow">
-            <label>Username</label>
-            <input id="username" type="text" value="admin" />
-          </div>
-          <div class="formRow">
-            <label>Password</label>
-            <input id="password" type="password" value="admin123" />
-          </div>
-          <div class="actions">
-            <button id="loginBtn" class="btn primary">Sign in</button>
-            <button id="logoutBtn" class="btn" disabled>Sign out</button>
-          </div>
-          <div id="loginMsg" class="msg"></div>
-        </section>
-
-        <section class="card">
-          <div class="cardTitle">Summary</div>
-          <div class="summary">
-            <div class="metric">
-              <div class="k">Active calls</div>
-              <div class="v" id="m_activeCalls">0</div>
-            </div>
-            <div class="metric">
-              <div class="k">Calls waiting for agents</div>
-              <div class="v" id="m_callsWaiting">0</div>
-            </div>
-            <div class="metric">
-              <div class="k">Agents logged in</div>
-              <div class="v" id="m_agentsLoggedIn">0</div>
-            </div>
-            <div class="metric">
-              <div class="k">Agents in calls</div>
-              <div class="v" id="m_agentsInCalls">0</div>
-            </div>
-          </div>
-          <div class="note">
-            These are pulled directly from the normalized snapshot (`snapshot.summary`).
-          </div>
-        </section>
-
-        <section class="card wide">
-          <div class="cardTitle">Agent state buckets (color legend)</div>
-          <div id="buckets" class="buckets"></div>
-          <div class="note">
-            Counts are computed from `snapshot.agents[].stateBucket` (derived from Vicidial `TR*` row class).
-          </div>
-        </section>
-
-        <section class="card wide">
-          <div class="cardTitle">Last 60 snapshots (rolling)</div>
-          <div class="historyWrap">
-            <pre id="history" class="history"></pre>
-          </div>
-        </section>
-      </main>
+      </div>
     </div>
-
-    <script type="module" src="./live.js"></script>
   </body>
 </html>
 
