@@ -3,7 +3,17 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { WebSocketServer } = require('ws');
-const { storeSnapshot, getShiftSummary, getPeakHour, computeShiftDate } = require('./db');
+const {
+  storeSnapshot,
+  getShiftSummary,
+  getPeakHour,
+  computeShiftDate,
+  listTables,
+  getTableInfo,
+  queryTable,
+  prepareClear,
+  confirmClear
+} = require('./db');
 require('dotenv').config();
 
 const PORT = Number(process.env.PORT || 3100);
@@ -36,6 +46,15 @@ function verifyBearerToken(req) {
   }
 }
 
+function requireAuth(req, res) {
+  const user = verifyBearerToken(req);
+  if (!user) {
+    res.status(401).json({ success: false, error: 'unauthorized' });
+    return null;
+  }
+  return user;
+}
+
 // --- REST ---
 
 app.get('/api/health', (_req, res) => {
@@ -54,16 +73,16 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.get('/api/auth/me', (req, res) => {
-  const user = verifyBearerToken(req);
-  if (!user) return res.status(401).json({ success: false });
+  const user = requireAuth(req, res);
+  if (!user) return;
   res.json({ success: true, user });
 });
 
 // Extension publishes snapshots over HTTP (Phase 1).
 // Gateways/dashboards can also consume via WS.
 app.post('/api/live/snapshot', async (req, res) => {
-  const user = verifyBearerToken(req);
-  if (!user) return res.status(401).json({ success: false });
+  const user = requireAuth(req, res);
+  if (!user) return;
   const snapshot = req.body?.snapshot;
   if (!snapshot) return res.status(400).json({ success: false, error: 'missing_snapshot' });
 
@@ -94,6 +113,49 @@ app.get('/api/shift/summary', async (req, res) => {
     peakHour: peak,
     hours
   });
+});
+
+// --- Admin / DB Explorer (auth required) ---
+
+app.get('/api/admin/db/tables', async (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const tables = await listTables();
+  res.json({ success: true, tables });
+});
+
+app.get('/api/admin/db/table/:name/info', async (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const info = await getTableInfo(req.params.name);
+  if (!info) return res.status(404).json({ success: false, error: 'table_not_found' });
+  res.json({ success: true, info });
+});
+
+app.get('/api/admin/db/table/:name/rows', async (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const { limit, offset, column, op, value } = req.query || {};
+  const filter = column && op ? { column, op, value } : null;
+  const result = await queryTable({ tableName: req.params.name, limit, offset, filter });
+  if (!result) return res.status(404).json({ success: false, error: 'table_not_found' });
+  res.json({ success: true, ...result });
+});
+
+app.post('/api/admin/db/clear/prepare', async (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const prep = await prepareClear();
+  res.json({ success: true, ...prep });
+});
+
+app.post('/api/admin/db/clear/confirm', async (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const { nonce, phrase } = req.body || {};
+  const result = await confirmClear({ nonce, phrase });
+  if (!result.success) return res.status(400).json(result);
+  res.json(result);
 });
 
 // --- WS ---

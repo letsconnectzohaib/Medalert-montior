@@ -31,6 +31,23 @@ REST
          }
        }
 
+Admin / DB Explorer (auth required)
+  GET  /api/admin/db/tables
+    -> { success: true, tables: ["raw_snapshots","shift_buckets", ...] }
+
+  GET  /api/admin/db/table/:name/info
+    -> { success: true, info: { table, columns: [...], count } }
+
+  GET  /api/admin/db/table/:name/rows?limit=50&offset=0&column=shift_date&op=eq&value=2026-03-16
+    -> { success: true, table, columns, rows, limit, offset, count }
+
+  POST /api/admin/db/clear/prepare
+    -> { success: true, nonce: "...", phrase: "CLEAR_DATA" }
+
+  POST /api/admin/db/clear/confirm
+    body: { nonce: "...", phrase: "CLEAR_DATA" }
+    -> { success: true }
+
 WebSocket
   WS  /ws
 

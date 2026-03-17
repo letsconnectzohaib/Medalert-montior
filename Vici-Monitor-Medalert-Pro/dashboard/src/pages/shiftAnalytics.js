@@ -32,6 +32,8 @@ export function renderShiftAnalytics(state) {
             out.textContent = '';
             return;
           }
+          // Cache the loaded summary so live snapshot updates don't clear it.
+          state.shiftSummaryCache = { date, data: json };
           msg.textContent = json.peakHour ? `Peak hour: ${json.peakHour.hour}:00 (total agents ${json.peakHour.total_agents})` : 'No peak hour yet.';
           out.textContent = formatHours(json.hours || {});
         }
@@ -42,6 +44,18 @@ export function renderShiftAnalytics(state) {
       el('pre', { id: 'shiftOut', class: 'history' }, [''])
     ])
   ]);
+
+  // If we already loaded a summary, render it immediately.
+  if (state.shiftSummaryCache?.data?.success) {
+    const { data } = state.shiftSummaryCache;
+    setTimeout(() => {
+      const msg = document.getElementById('shiftMsg');
+      const out = document.getElementById('shiftOut');
+      if (!msg || !out) return;
+      msg.textContent = data.peakHour ? `Peak hour: ${data.peakHour.hour}:00 (total agents ${data.peakHour.total_agents})` : 'No peak hour yet.';
+      out.textContent = formatHours(data.hours || {});
+    }, 0);
+  }
 
   return wrap;
 }

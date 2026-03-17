@@ -19,6 +19,9 @@
   - `dashboard/app.html` provides login-first UX
   - Left sidebar navigation: Overview, Shift analytics, Settings
   - Uses existing gateway login + WS snapshots, with session persistence
+- Added **Advanced → Database Explorer**:
+  - Lists tables, shows schema, browses rows with simple filters
+  - Safe “Clear DB data” with multi-step confirmation (keeps tables)
 - Implemented **Extension Pro (Phase 1)**:
   - MV3 popup: login-only UI + gateway status + last snapshot
   - Options page: configure gateway base URL + test connection

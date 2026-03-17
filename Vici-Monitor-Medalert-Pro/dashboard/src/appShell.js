@@ -3,6 +3,7 @@ import { login as apiLogin, pingGateway, wsUrl, normalizeBaseUrl } from './apiCl
 import { renderOverview } from './pages/overview.js';
 import { renderShiftAnalytics } from './pages/shiftAnalytics.js';
 import { renderSettings } from './pages/settings.js';
+import { renderAdvancedDb } from './pages/advancedDb.js';
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -31,7 +32,19 @@ export function createApp(root) {
     user: null,
     ws: null,
     latestSnapshot: null,
-    wsStatus: 'disconnected'
+    wsStatus: 'disconnected',
+    // cache for DB-driven shift summary so it doesn't disappear on live updates
+    shiftSummaryCache: null
+  };
+
+  const dom = {
+    shell: null,
+    sidebarNav: null,
+    content: null,
+    badges: null,
+    pageContainer: null,
+    pageTitle: null,
+    pageDesc: null
   };
 
   function setPage(p) {
@@ -39,12 +52,14 @@ export function createApp(root) {
     savePage(p);
     // Keep URL stable for refreshes without forcing a reload.
     history.replaceState(null, '', `#${p}`);
-    render();
+    renderPage();
+    updateBadges();
+    updateNavActive();
   }
 
   function getPageFromUrl() {
     const h = String(window.location.hash || '').replace(/^#/, '').trim();
-    if (h === 'overview' || h === 'shift' || h === 'settings') return h;
+    if (h === 'overview' || h === 'shift' || h === 'settings' || h === 'advanced') return h;
     return null;
   }
 
@@ -55,12 +70,12 @@ export function createApp(root) {
     const ws = new WebSocket(wsUrl(state.baseUrl));
     state.ws = ws;
     state.wsStatus = 'connecting';
-    render();
+    updateBadges();
 
     ws.onopen = () => {
       state.wsStatus = 'connected';
       ws.send(JSON.stringify({ type: 'subscribe', token: state.token }));
-      render();
+      updateBadges();
     };
 
     ws.onmessage = (evt) => {
@@ -72,17 +87,22 @@ export function createApp(root) {
       }
       if (msg.type === 'snapshot' && msg.snapshot) {
         state.latestSnapshot = msg.snapshot;
-        render();
+        // Live snapshots should NOT force a full app re-render.
+        // Only update badges, and if user is on Overview update overview widgets.
+        updateBadges();
+        if (state.page === 'overview') {
+          renderPage(); // re-render overview to show new numbers
+        }
       }
       if (msg.type === 'error' && msg.error === 'unauthorized') {
         state.wsStatus = 'unauthorized';
-        render();
+        updateBadges();
       }
     };
 
     ws.onclose = () => {
       state.wsStatus = 'disconnected';
-      render();
+      updateBadges();
       setTimeout(connectWs, 1500);
     };
   }
@@ -157,16 +177,16 @@ export function createApp(root) {
     root.replaceChildren(el('div', { class: 'loginWrap' }, [card]));
   }
 
-  function renderShell() {
-    const badges = el('div', { class: 'topBadges' });
-    setBadge(badges, 'auth', 'good', `Auth: ${state.user?.username || 'signed in'}`);
-    setBadge(badges, 'ws', state.wsStatus === 'connected' ? 'good' : state.wsStatus === 'unauthorized' ? 'bad' : 'warn', `WS: ${state.wsStatus}`);
-    setBadge(badges, 'snap', state.latestSnapshot ? 'good' : 'warn', `Last snapshot: ${state.latestSnapshot?.timestamp || '—'}`);
+  function ensureShell() {
+    if (dom.shell) return;
 
-    const nav = el('div', { class: 'sbNav' }, [
-      el('button', { type: 'button', class: `sbLink ${state.page === 'overview' ? 'active' : ''}`, onclick: () => setPage('overview') }, ['Overview']),
-      el('button', { type: 'button', class: `sbLink ${state.page === 'shift' ? 'active' : ''}`, onclick: () => setPage('shift') }, ['Shift analytics']),
-      el('button', { type: 'button', class: `sbLink ${state.page === 'settings' ? 'active' : ''}`, onclick: () => setPage('settings') }, ['Settings'])
+    dom.badges = el('div', { class: 'topBadges' });
+
+    dom.sidebarNav = el('div', { class: 'sbNav' }, [
+      el('button', { id: 'nav_overview', type: 'button', class: 'sbLink', onclick: () => setPage('overview') }, ['Overview']),
+      el('button', { id: 'nav_shift', type: 'button', class: 'sbLink', onclick: () => setPage('shift') }, ['Shift analytics']),
+      el('button', { id: 'nav_settings', type: 'button', class: 'sbLink', onclick: () => setPage('settings') }, ['Settings']),
+      el('button', { id: 'nav_advanced', type: 'button', class: 'sbLink', onclick: () => setPage('advanced') }, ['Advanced'])
     ]);
 
     const sidebar = el('aside', { class: 'sidebar' }, [
@@ -174,35 +194,80 @@ export function createApp(root) {
         el('div', { class: 'sbBrand' }, ['Vicidial Monitor Pro']),
         el('div', { class: 'sbSub' }, ['Operations intelligence'])
       ]),
-      nav,
+      dom.sidebarNav,
       el('div', { class: 'sbFooter' }, [
-        el('div', {}, [`Gateway: ${state.baseUrl}`]),
+        el('div', { id: 'sb_gateway' }, [`Gateway: ${state.baseUrl}`]),
         el('button', { type: 'button', class: 'btn', onclick: logout }, ['Sign out'])
       ])
     ]);
 
+    dom.pageTitle = el('div', { class: 'pageTitle' }, ['Overview']);
+    dom.pageDesc = el('div', { class: 'pageDesc' }, ['']);
+
     const header = el('div', { class: 'pageHeader' }, [
-      el('div', {}, [
-        el('div', { class: 'pageTitle' }, [
-          state.page === 'overview' ? 'Overview' : state.page === 'shift' ? 'Shift analytics' : 'Settings'
-        ]),
-        el('div', { class: 'pageDesc' }, [
-          state.page === 'overview'
-            ? 'Live operations from streaming snapshots.'
-            : state.page === 'shift'
-              ? 'Hourly buckets, peak hour, and purple/blue distributions.'
-              : 'Configure shift timings, persistence, and capture behavior.'
-        ])
-      ]),
-      badges
+      el('div', {}, [dom.pageTitle, dom.pageDesc]),
+      dom.badges
     ]);
 
-    const content = el('main', { class: 'content' }, [header]);
-    if (state.page === 'overview') content.appendChild(renderOverview(state));
-    if (state.page === 'shift') content.appendChild(renderShiftAnalytics(state));
-    if (state.page === 'settings') content.appendChild(renderSettings(state, render));
+    dom.pageContainer = el('div', { id: 'page_container' }, []);
+    dom.content = el('main', { class: 'content' }, [header, dom.pageContainer]);
 
-    root.replaceChildren(el('div', { class: 'shell' }, [sidebar, content]));
+    dom.shell = el('div', { class: 'shell' }, [sidebar, dom.content]);
+    root.replaceChildren(dom.shell);
+  }
+
+  function updateNavActive() {
+    if (!dom.sidebarNav) return;
+    dom.sidebarNav.querySelectorAll('.sbLink').forEach((b) => b.classList.remove('active'));
+    const id =
+      state.page === 'overview'
+        ? 'nav_overview'
+        : state.page === 'shift'
+          ? 'nav_shift'
+          : state.page === 'settings'
+            ? 'nav_settings'
+            : 'nav_advanced';
+    dom.sidebarNav.querySelector(`#${id}`)?.classList.add('active');
+    const g = dom.shell?.querySelector('#sb_gateway');
+    if (g) g.textContent = `Gateway: ${state.baseUrl}`;
+  }
+
+  function updateBadges() {
+    if (!dom.badges) return;
+    dom.badges.innerHTML = '';
+    setBadge(dom.badges, 'auth', 'good', `Auth: ${state.user?.username || 'signed in'}`);
+    setBadge(
+      dom.badges,
+      'ws',
+      state.wsStatus === 'connected' ? 'good' : state.wsStatus === 'unauthorized' ? 'bad' : 'warn',
+      `WS: ${state.wsStatus}`
+    );
+    setBadge(dom.badges, 'snap', state.latestSnapshot ? 'good' : 'warn', `Last snapshot: ${state.latestSnapshot?.timestamp || '—'}`);
+  }
+
+  function renderPage() {
+    ensureShell();
+    updateNavActive();
+
+    dom.pageTitle.textContent = state.page === 'overview' ? 'Overview' : state.page === 'shift' ? 'Shift analytics' : 'Settings';
+    dom.pageDesc.textContent =
+      state.page === 'overview'
+        ? 'Live operations from streaming snapshots.'
+        : state.page === 'shift'
+          ? 'DB-driven hourly buckets, peak hour, and purple/blue distributions.'
+          : state.page === 'settings'
+            ? 'Configure shift timings, persistence, and capture behavior.'
+            : 'Inspect database tables, explore raw snapshots, and perform safe maintenance actions.';
+
+    dom.pageContainer.replaceChildren();
+    if (state.page === 'overview') dom.pageContainer.appendChild(renderOverview(state));
+    if (state.page === 'shift') dom.pageContainer.appendChild(renderShiftAnalytics(state));
+    if (state.page === 'settings') dom.pageContainer.appendChild(renderSettings(state, () => {
+      // after settings change we may have updated baseUrl/WS; refresh nav+badges
+      updateNavActive();
+      updateBadges();
+    }));
+    if (state.page === 'advanced') dom.pageContainer.appendChild(renderAdvancedDb(state));
   }
 
   function render() {
@@ -210,7 +275,8 @@ export function createApp(root) {
       renderLogin();
       return;
     }
-    renderShell();
+    renderPage();
+    updateBadges();
   }
 
   window.addEventListener('hashchange', () => {
@@ -218,7 +284,9 @@ export function createApp(root) {
     if (p && p !== state.page) {
       state.page = p;
       savePage(p);
-      render();
+      renderPage();
+      updateBadges();
+      updateNavActive();
     }
   });
 
