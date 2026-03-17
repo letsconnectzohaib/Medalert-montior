@@ -26,17 +26,25 @@ export async function getSettings() {
 
 export async function setSettings(partial) {
   const current = await getSettings();
+  // Prevent accidental sign-out: auth can only be cleared via clearAuth().
+  // Some background/runtime updates call setSettings frequently; we never want those
+  // to wipe auth due to a bad merge or missing fields.
+  const partialSafe = { ...partial };
+  if (Object.prototype.hasOwnProperty.call(partialSafe, 'auth') && partialSafe.auth == null) {
+    delete partialSafe.auth;
+  }
   const next = {
     ...current,
-    ...partial,
-    scrape: { ...(current.scrape || {}), ...(partial.scrape || {}) },
-    runtime: { ...(current.runtime || {}), ...(partial.runtime || {}) }
+    ...partialSafe,
+    scrape: { ...(current.scrape || {}), ...(partialSafe.scrape || {}) },
+    runtime: { ...(current.runtime || {}), ...(partialSafe.runtime || {}) }
   };
   await chrome.storage.local.set(next);
   return next;
 }
 
 export async function clearAuth() {
+  // Explicit sign-out path (only place that clears auth).
   await chrome.storage.local.set({ auth: null });
 }
 

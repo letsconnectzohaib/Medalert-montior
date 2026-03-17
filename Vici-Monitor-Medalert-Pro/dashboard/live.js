@@ -1,8 +1,15 @@
 const $ = (id) => document.getElementById(id);
 
+const LS = {
+  gatewayUrl: 'vmp_gatewayUrl',
+  token: 'vmp_token',
+  user: 'vmp_user'
+};
+
 let state = {
   gatewayUrl: 'http://localhost:3100',
   token: null,
+  user: null,
   ws: null,
   history: []
 };
@@ -85,6 +92,14 @@ function connectWs() {
       return;
     }
 
+    if (msg.type === 'error' && msg.error === 'unauthorized') {
+      // Do NOT auto-sign-out; just surface it.
+      setBadge('ws', 'bad', 'WS: unauthorized (relogin)');
+      $('loginMsg').textContent = 'Session expired/invalid. Please sign in again.';
+      setBadge('auth', 'bad', 'Auth: invalid');
+      return;
+    }
+
     if (msg.type === 'snapshot' && msg.snapshot) {
       renderSnapshot(msg.snapshot);
     }
@@ -148,6 +163,12 @@ function renderSnapshot(snapshot) {
     .join('\n');
 }
 
+function setSignedInUI(isSignedIn) {
+  $('logoutBtn').disabled = !isSignedIn;
+  $('loginBtn').disabled = isSignedIn;
+  setBadge('auth', isSignedIn ? 'good' : 'warn', `Auth: ${isSignedIn ? 'signed in' : 'signed out'}`);
+}
+
 async function refreshGatewayBadge() {
   const ok = await pingGateway();
   setBadge('gw', ok ? 'good' : 'bad', `Gateway: ${ok ? 'online' : 'offline'}`);
@@ -172,22 +193,28 @@ async function onLogin() {
   }
 
   state.token = res.token;
+  state.user = res.user || null;
   $('loginMsg').textContent = `Signed in as ${res.user?.username || 'user'}.`;
-  $('logoutBtn').disabled = false;
-  $('loginBtn').disabled = true;
+  localStorage.setItem(LS.gatewayUrl, state.gatewayUrl);
+  localStorage.setItem(LS.token, state.token);
+  localStorage.setItem(LS.user, JSON.stringify(state.user || {}));
+
+  setSignedInUI(true);
   connectWs();
 }
 
 function onLogout() {
   state.token = null;
+  state.user = null;
   try {
     state.ws?.close();
   } catch {}
   state.ws = null;
 
   setBadge('ws', 'warn', 'WS: disconnected');
-  $('logoutBtn').disabled = true;
-  $('loginBtn').disabled = false;
+  localStorage.removeItem(LS.token);
+  localStorage.removeItem(LS.user);
+  setSignedInUI(false);
   $('loginMsg').textContent = 'Signed out.';
 }
 
@@ -195,4 +222,29 @@ $('loginBtn').addEventListener('click', onLogin);
 $('logoutBtn').addEventListener('click', onLogout);
 
 refreshGatewayBadge();
+
+// --- restore session on load (prevents “signout” on refresh/reconnect) ---
+(function restore() {
+  const savedUrl = localStorage.getItem(LS.gatewayUrl);
+  const savedToken = localStorage.getItem(LS.token);
+  const savedUser = localStorage.getItem(LS.user);
+
+  if (savedUrl) {
+    state.gatewayUrl = savedUrl;
+    $('gatewayUrl').value = savedUrl;
+  }
+
+  if (savedToken) {
+    state.token = savedToken;
+    try {
+      state.user = savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      state.user = null;
+    }
+    setSignedInUI(true);
+    connectWs();
+  } else {
+    setSignedInUI(false);
+  }
+})();
 
