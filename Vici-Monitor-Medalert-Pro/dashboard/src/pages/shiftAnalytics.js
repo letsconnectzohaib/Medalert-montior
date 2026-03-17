@@ -133,10 +133,14 @@ function callflowStat(title, roll) {
   const maxActive = roll?.active_calls_max ?? 0;
   const avgWait = round1(roll?.calls_waiting_avg ?? 0);
   const maxWait = roll?.calls_waiting_max ?? 0;
+  const callsTodayMax = roll?.calls_today_max ?? 0;
+  const dropMax = round1(roll?.dropped_percent_max ?? 0);
   return el('div', { class: 'miniCard' }, [
     el('div', { class: 'miniTitle' }, [title]),
     el('div', { class: 'miniBig' }, [`${maxWait}`]),
-    el('div', { class: 'miniSub' }, [`waiting max=${maxWait} avg=${avgWait} • active max=${maxActive} avg=${avgActive}`])
+    el('div', { class: 'miniSub' }, [
+      `waiting max=${maxWait} avg=${avgWait} • active max=${maxActive} avg=${avgActive} • calls today max=${callsTodayMax} • drop% max=${dropMax}`
+    ])
   ]);
 }
 

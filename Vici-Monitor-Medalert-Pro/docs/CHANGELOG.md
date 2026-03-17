@@ -17,7 +17,7 @@
   - Adds persistent gateway settings (`app_settings`) for shift timing + retention
   - Buckets by **shift timezone local hour** (not machine local time)
   - Automatic retention cleanup (raw snapshots + bucket aggregates)
-  - Persists **call-flow snapshots** + **hourly call-flow aggregates** (active/waiting/ivr/ringing avg+max)
+  - Persists **call-flow snapshots** + **hourly call-flow aggregates** (active/waiting/ivr/ringing avg+max, plus calls today max + dropped% avg/max)
 - Fixed Vicidial **summary tile parsing** to map labels→values by tile column (prevents “calls waiting” incorrectly mirroring active calls).
 - Started **Dashboard Pro App Shell**:
   - `dashboard/app.html` provides login-first UX

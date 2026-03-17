@@ -28,6 +28,7 @@ const BUCKET_LABELS = [
 export function renderOverview(state) {
   const snap = state.latestSnapshot;
   const s = snap?.summary || {};
+  const m = snap?.meta || {};
 
   if (!snap) {
     return el('div', { class: 'grid' }, [
@@ -47,7 +48,11 @@ export function renderOverview(state) {
       metric('Active calls', s.activeCalls ?? 0),
       metric('Calls waiting for agents', s.callsWaiting ?? 0),
       metric('Agents logged in', s.agentsLoggedIn ?? 0),
-      metric('Agents in calls', s.agentsInCalls ?? 0)
+      metric('Agents in calls', s.agentsInCalls ?? 0),
+      metric('Agents waiting', s.agentsWaiting ?? 0),
+      metric('Agents paused', s.agentsPaused ?? 0),
+      metric('Calls today', m.callsToday ?? 0),
+      metric('Dropped %', m.droppedPercent ?? 0)
     ]),
     el('div', { class: 'note' }, [
       `Last update: ${snap.timestamp || '—'} • WS: ${state.wsStatus}`

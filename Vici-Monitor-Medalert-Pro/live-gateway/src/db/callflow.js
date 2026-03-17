@@ -17,7 +17,9 @@ function getHourlyRow(shiftDate, hour) {
     `SELECT samples, active_calls_avg, active_calls_max,
             calls_waiting_avg, calls_waiting_max,
             calls_in_ivr_avg, calls_in_ivr_max,
-            ringing_calls_avg, ringing_calls_max
+            ringing_calls_avg, ringing_calls_max,
+            calls_today_max,
+            dropped_percent_avg, dropped_percent_max
      FROM callflow_hourly
      WHERE shift_date = ? AND hour = ?
      LIMIT 1`
@@ -37,7 +39,9 @@ function upsertHourly(shiftDate, hour, next) {
          active_calls_avg = ?, active_calls_max = ?,
          calls_waiting_avg = ?, calls_waiting_max = ?,
          calls_in_ivr_avg = ?, calls_in_ivr_max = ?,
-         ringing_calls_avg = ?, ringing_calls_max = ?
+         ringing_calls_avg = ?, ringing_calls_max = ?,
+         calls_today_max = ?,
+         dropped_percent_avg = ?, dropped_percent_max = ?
      WHERE shift_date = ? AND hour = ?`,
     [
       next.samples,
@@ -49,6 +53,9 @@ function upsertHourly(shiftDate, hour, next) {
       next.calls_in_ivr_max,
       next.ringing_calls_avg,
       next.ringing_calls_max,
+      next.calls_today_max,
+      next.dropped_percent_avg,
+      next.dropped_percent_max,
       shiftDate,
       hour
     ]
@@ -60,8 +67,10 @@ function upsertHourly(shiftDate, hour, next) {
         active_calls_avg, active_calls_max,
         calls_waiting_avg, calls_waiting_max,
         calls_in_ivr_avg, calls_in_ivr_max,
-        ringing_calls_avg, ringing_calls_max
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ringing_calls_avg, ringing_calls_max,
+        calls_today_max,
+        dropped_percent_avg, dropped_percent_max
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         shiftDate,
         hour,
@@ -73,7 +82,10 @@ function upsertHourly(shiftDate, hour, next) {
         next.calls_in_ivr_avg,
         next.calls_in_ivr_max,
         next.ringing_calls_avg,
-        next.ringing_calls_max
+        next.ringing_calls_max,
+        next.calls_today_max,
+        next.dropped_percent_avg,
+        next.dropped_percent_max
       ]
     );
   }
@@ -92,6 +104,7 @@ function updateHourlyCallflow(shiftDate, hour, metrics) {
   const w = updateAvg(prev ? toNum(prev.calls_waiting_avg) : 0, prevN, metrics.calls_waiting);
   const ivr = updateAvg(prev ? toNum(prev.calls_in_ivr_avg) : 0, prevN, metrics.calls_in_ivr);
   const r = updateAvg(prev ? toNum(prev.ringing_calls_avg) : 0, prevN, metrics.ringing_calls);
+  const dp = updateAvg(prev ? toNum(prev.dropped_percent_avg) : 0, prevN, metrics.dropped_percent);
 
   const next = {
     samples: a.n,
@@ -102,7 +115,10 @@ function updateHourlyCallflow(shiftDate, hour, metrics) {
     calls_in_ivr_avg: ivr.avg,
     calls_in_ivr_max: Math.max(prev ? clampInt(prev.calls_in_ivr_max) : 0, metrics.calls_in_ivr),
     ringing_calls_avg: r.avg,
-    ringing_calls_max: Math.max(prev ? clampInt(prev.ringing_calls_max) : 0, metrics.ringing_calls)
+    ringing_calls_max: Math.max(prev ? clampInt(prev.ringing_calls_max) : 0, metrics.ringing_calls),
+    calls_today_max: Math.max(prev ? clampInt(prev.calls_today_max) : 0, metrics.calls_today),
+    dropped_percent_avg: dp.avg,
+    dropped_percent_max: Math.max(prev ? toNum(prev.dropped_percent_max, 0) : 0, metrics.dropped_percent)
   };
 
   upsertHourly(shiftDate, hour, next);
@@ -160,7 +176,9 @@ async function getCallflowHourly(shiftDate) {
             active_calls_avg, active_calls_max,
             calls_waiting_avg, calls_waiting_max,
             calls_in_ivr_avg, calls_in_ivr_max,
-            ringing_calls_avg, ringing_calls_max
+            ringing_calls_avg, ringing_calls_max,
+            calls_today_max,
+            dropped_percent_avg, dropped_percent_max
      FROM callflow_hourly
      WHERE shift_date = ?
      ORDER BY hour ASC`

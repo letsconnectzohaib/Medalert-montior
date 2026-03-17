@@ -68,7 +68,7 @@ REST
          },
          compare: { previousShiftDate: "YYYY-MM-DD", fullShift: { ... } },
          series: [
-           { hour, samples, active_calls_avg, active_calls_max, calls_waiting_avg, calls_waiting_max, ... },
+          { hour, samples, active_calls_avg, active_calls_max, calls_waiting_avg, calls_waiting_max, calls_today_max, dropped_percent_avg, dropped_percent_max, ... },
            ...
          ]
        }

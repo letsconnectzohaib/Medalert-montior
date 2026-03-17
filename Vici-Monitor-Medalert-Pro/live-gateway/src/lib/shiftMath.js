@@ -56,7 +56,10 @@ function sumCallflowRows(rows, hourList) {
       calls_in_ivr_avg: 0,
       calls_in_ivr_max: 0,
       ringing_calls_avg: 0,
-      ringing_calls_max: 0
+      ringing_calls_max: 0,
+      calls_today_max: 0,
+      dropped_percent_avg: 0,
+      dropped_percent_max: 0
     };
   }
 
@@ -69,7 +72,10 @@ function sumCallflowRows(rows, hourList) {
     active_calls_max: 0,
     calls_waiting_max: 0,
     calls_in_ivr_max: 0,
-    ringing_calls_max: 0
+    ringing_calls_max: 0,
+    calls_today_max: 0,
+    dropped_percent_avg: 0,
+    dropped_percent_max: 0
   };
 
   for (const r of picked) {
@@ -80,11 +86,14 @@ function sumCallflowRows(rows, hourList) {
       acc.calls_waiting_avg += Number(r.calls_waiting_avg || 0) * s;
       acc.calls_in_ivr_avg += Number(r.calls_in_ivr_avg || 0) * s;
       acc.ringing_calls_avg += Number(r.ringing_calls_avg || 0) * s;
+      acc.dropped_percent_avg += Number(r.dropped_percent_avg || 0) * s;
     }
     acc.active_calls_max = Math.max(acc.active_calls_max, Number(r.active_calls_max || 0));
     acc.calls_waiting_max = Math.max(acc.calls_waiting_max, Number(r.calls_waiting_max || 0));
     acc.calls_in_ivr_max = Math.max(acc.calls_in_ivr_max, Number(r.calls_in_ivr_max || 0));
     acc.ringing_calls_max = Math.max(acc.ringing_calls_max, Number(r.ringing_calls_max || 0));
+    acc.calls_today_max = Math.max(acc.calls_today_max, Number(r.calls_today_max || 0));
+    acc.dropped_percent_max = Math.max(acc.dropped_percent_max, Number(r.dropped_percent_max || 0));
   }
 
   return {
@@ -97,7 +106,10 @@ function sumCallflowRows(rows, hourList) {
     calls_in_ivr_avg: totalSamples ? acc.calls_in_ivr_avg / totalSamples : 0,
     calls_in_ivr_max: acc.calls_in_ivr_max,
     ringing_calls_avg: totalSamples ? acc.ringing_calls_avg / totalSamples : 0,
-    ringing_calls_max: acc.ringing_calls_max
+    ringing_calls_max: acc.ringing_calls_max,
+    calls_today_max: acc.calls_today_max,
+    dropped_percent_avg: totalSamples ? acc.dropped_percent_avg / totalSamples : 0,
+    dropped_percent_max: acc.dropped_percent_max
   };
 }
 

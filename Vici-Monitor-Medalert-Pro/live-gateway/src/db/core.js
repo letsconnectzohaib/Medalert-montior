@@ -83,7 +83,10 @@ async function initDb() {
       calls_in_ivr_avg REAL NOT NULL DEFAULT 0,
       calls_in_ivr_max INTEGER NOT NULL DEFAULT 0,
       ringing_calls_avg REAL NOT NULL DEFAULT 0,
-      ringing_calls_max INTEGER NOT NULL DEFAULT 0
+      ringing_calls_max INTEGER NOT NULL DEFAULT 0,
+      calls_today_max INTEGER NOT NULL DEFAULT 0,
+      dropped_percent_avg REAL NOT NULL DEFAULT 0,
+      dropped_percent_max REAL NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS generated_reports (
@@ -144,6 +147,29 @@ async function initDb() {
     }
   } catch {
     // Ignore migration failures; schema will be correct on fresh DBs.
+  }
+
+  // Lightweight migration for callflow_hourly additions.
+  try {
+    const stmt = db.prepare(`PRAGMA table_info(callflow_hourly);`);
+    const cols = [];
+    while (stmt.step()) cols.push(stmt.getAsObject().name);
+    stmt.free();
+
+    const addCol = (name, sqlType, def) => {
+      if (cols.includes(name)) return false;
+      db.run(`ALTER TABLE callflow_hourly ADD COLUMN ${name} ${sqlType} NOT NULL DEFAULT ${def};`);
+      return true;
+    };
+
+    const changed =
+      addCol('calls_today_max', 'INTEGER', 0) ||
+      addCol('dropped_percent_avg', 'REAL', 0) ||
+      addCol('dropped_percent_max', 'REAL', 0);
+
+    if (changed) persist();
+  } catch {
+    // ignore
   }
 
   // Defaults (Asia/Karachi, 19:00 -> 04:30, retention 14/60 days)
