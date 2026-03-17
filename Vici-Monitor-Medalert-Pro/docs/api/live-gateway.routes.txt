@@ -1,0 +1,38 @@
+Live Gateway (Pro) Routes
+
+Base URL:
+  http://localhost:3100
+
+REST
+  GET  /api/health
+    -> { status: "healthy", service: "live-gateway", time: ISO }
+
+  POST /api/auth/login
+    body: { "username": "...", "password": "..." }
+    -> { success: true, token: "<jwt>", user: { username, role } }
+
+  GET  /api/auth/me
+    headers: Authorization: Bearer <jwt>
+    -> { success: true, user: { username, role, iat, exp } }
+
+WebSocket
+  WS  /ws
+
+  Client -> Server messages (JSON)
+    1) Subscribe (dashboard)
+      { "type": "subscribe", "token": "<jwt>" }
+
+    2) Publish (extension or trusted publisher)
+      { "type": "publish", "token": "<jwt>", "snapshot": { ...VicidialSnapshot... } }
+
+  Server -> Client messages (JSON)
+    - { "type": "hello", time: ISO }
+    - { "type": "subscribed", user: {...}, hasLatest: boolean }
+    - { "type": "snapshot", snapshot: {...} }
+    - { "type": "published", ok: true }
+    - { "type": "error", error: "unauthorized" | "invalid_json" | "missing_snapshot" | "unknown_type" }
+
+Notes
+  - Phase 1 auth is single-admin from env vars in `live-gateway/.env`.
+  - Persistence is intentionally omitted in Phase 1; gateway is “live-first”.
+

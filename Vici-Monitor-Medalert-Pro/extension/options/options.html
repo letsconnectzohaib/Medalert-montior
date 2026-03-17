@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vicidial Monitor Pro Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Vicidial Monitor Pro</h1>
+      <p class="muted">Phase 1 settings: gateway URL (auth + websocket broadcast).</p>
+
+      <div class="card">
+        <label>Live Gateway Base URL</label>
+        <input id="gatewayBaseUrl" type="text" placeholder="http://localhost:3100" />
+        <div class="actions">
+          <button id="save" class="btn btn-primary">Save</button>
+          <button id="test" class="btn">Test</button>
+        </div>
+        <div id="msg" class="msg"></div>
+      </div>
+    </div>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
+

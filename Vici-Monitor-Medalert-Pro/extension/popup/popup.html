@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vicidial Monitor Pro</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="title">
+          <div class="brand">Vicidial Monitor Pro</div>
+          <div class="subtitle">Live-first. Analytics later.</div>
+        </div>
+        <div class="status">
+          <div id="auth-badge" class="badge badge-warn">Signed out</div>
+          <div id="gw-badge" class="badge badge-warn">Gateway: unknown</div>
+        </div>
+      </header>
+
+      <main class="main">
+        <section id="login" class="card">
+          <div class="card-title">Login</div>
+          <div class="row">
+            <label>Username</label>
+            <input id="username" type="text" autocomplete="username" />
+          </div>
+          <div class="row">
+            <label>Password</label>
+            <input id="password" type="password" autocomplete="current-password" />
+          </div>
+          <div class="actions">
+            <button id="login-btn" class="btn btn-primary">Sign in</button>
+            <button id="logout-btn" class="btn" disabled>Sign out</button>
+          </div>
+          <div id="login-msg" class="msg"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-title">Live</div>
+          <div class="kv">
+            <div class="k">Scraper</div>
+            <div class="v" id="scraper-state">Not started</div>
+            <div class="k">Last snapshot</div>
+            <div class="v" id="last-snapshot">—</div>
+          </div>
+          <div class="note">
+            For DOM scraping, the Vicidial realtime report page must be open in at least one tab.
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <a href="#" id="open-options">Settings</a>
+      </footer>
+    </div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
+

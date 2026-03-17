@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Vicidial Monitor Pro",
+  "version": "0.1.0",
+  "description": "Pro Vicidial realtime monitor: auth + reliable background scraping + live streaming.",
+  "action": {
+    "default_title": "Vicidial Monitor Pro",
+    "default_popup": "popup/popup.html"
+  },
+  "options_page": "options/options.html",
+  "permissions": ["storage", "alarms", "tabs"],
+  "host_permissions": [
+    "http://localhost:3100/*",
+    "https://*/realtime_report.php*",
+    "http://*/realtime_report.php*"
+  ],
+  "background": {
+    "service_worker": "background/service_worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*/realtime_report.php*", "http://*/realtime_report.php*"],
+      "js": ["content/content_script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+

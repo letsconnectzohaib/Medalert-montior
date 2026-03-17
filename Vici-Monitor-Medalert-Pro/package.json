@@ -1,0 +1,13 @@
+{
+  "name": "vici-monitor-medalert-pro",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "live-gateway"
+  ],
+  "scripts": {
+    "dev:live-gateway": "npm --workspace live-gateway run dev",
+    "start:live-gateway": "npm --workspace live-gateway run start"
+  }
+}
+
