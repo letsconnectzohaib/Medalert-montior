@@ -2,10 +2,6 @@ import { getSettings, setSettings, clearAuth, authLogin, pingGateway } from '../
 
 const $ = (id) => document.getElementById(id);
 
-const STORAGE = {
-  splashSeenAt: 'splashSeenAt'
-};
-
 function setBadge(el, kind, text) {
   el.classList.remove('badge-good', 'badge-warn', 'badge-bad');
   if (kind === 'good') el.classList.add('badge-good');
@@ -21,9 +17,8 @@ function show(elId, isShown) {
 }
 
 function setAppMode(mode) {
-  // mode: 'login' | 'splash' | 'app'
+  // mode: 'login' | 'app'
   show('screen-login', mode === 'login');
-  show('screen-splash', mode === 'splash');
   show('bottom-nav', mode === 'app');
 
   // app tabs
@@ -64,25 +59,14 @@ async function refresh() {
   $('scrape-mode').value = settings.scrape?.mode || 'onChange';
   $('throttle-ms').value = String(settings.scrape?.throttleMs ?? 1500);
   $('poll-ms').value = String(settings.scrape?.pollMs ?? 60000);
-  $('report-page-url').value = settings.target?.reportPageUrl || '';
   $('login-gateway').textContent = settings.gatewayBaseUrl || 'http://localhost:3100';
 
-  // Gate: login vs splash vs app
+  // Gate: login vs app (no splash)
   if (!settings.auth?.token) {
     setAppMode('login');
   } else {
-    // Show splash only once per popup open for 3s, then show app.
-    const splashAlready = sessionStorage.getItem(STORAGE.splashSeenAt);
-    if (!splashAlready) {
-      sessionStorage.setItem(STORAGE.splashSeenAt, Date.now().toString());
-      setAppMode('splash');
-      setTimeout(() => {
-        setAppMode('app');
-        showTab('dashboard');
-      }, 3000);
-    } else {
-      setAppMode('app');
-    }
+    setAppMode('app');
+    showTab('dashboard');
   }
 }
 
@@ -104,14 +88,11 @@ async function onLogin() {
   }
 
   await setSettings({ auth: { token: res.token, user: res.user } });
-  // After login: show splash then app.
-  sessionStorage.removeItem(STORAGE.splashSeenAt);
   await refresh();
 }
 
 async function onLogout() {
   await clearAuth();
-  sessionStorage.removeItem(STORAGE.splashSeenAt);
   await refresh();
 }
 
@@ -136,8 +117,7 @@ async function onSaveSettings() {
   const mode = $('scrape-mode').value;
   const throttleMs = Math.max(250, Number($('throttle-ms').value) || 1500);
   const pollMs = Math.max(1000, Number($('poll-ms').value) || 60000);
-  const reportPageUrl = $('report-page-url').value.trim();
-  await setSettings({ gatewayBaseUrl, target: { reportPageUrl }, scrape: { mode, throttleMs, pollMs } });
+  await setSettings({ gatewayBaseUrl, scrape: { mode, throttleMs, pollMs } });
   await refresh();
 }
 

@@ -9,11 +9,31 @@
   <body>
     <div class="wrap">
       <h1>Vicidial Monitor Pro</h1>
-      <p class="muted">Phase 1 settings: gateway URL (auth + websocket broadcast).</p>
+      <p class="muted">
+        Advanced settings for the extension (scrape targets, gateway URL).
+      </p>
 
       <div class="card">
         <label>Live Gateway Base URL</label>
         <input id="gatewayBaseUrl" type="text" placeholder="http://localhost:3100" />
+
+        <div class="divider"></div>
+
+        <label>Scrape targets (Vicidial realtime report URLs)</label>
+        <div class="muted" style="margin: 6px 0 10px;">
+          Add one or more exact page URLs. The extension will search for open tabs matching these URLs.
+        </div>
+        <div id="targets"></div>
+        <div class="actions" style="margin-top: 10px;">
+          <button id="addTarget" class="btn">Add URL</button>
+        </div>
+
+        <div class="divider"></div>
+        <div class="muted" style="font-size: 12px;">
+          Note: Chrome extension <code>host_permissions</code> are defined in <code>manifest.json</code> and cannot be changed at runtime.
+          This page controls which URLs the extension looks for when choosing tabs to scrape.
+        </div>
+
         <div class="actions">
           <button id="save" class="btn btn-primary">Save</button>
           <button id="test" class="btn">Test</button>

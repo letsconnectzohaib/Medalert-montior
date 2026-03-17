@@ -6,15 +6,12 @@ function nowIso() {
 
 async function findVicidialTabs() {
   const settings = await getSettings();
-  const configured = String(settings.target?.reportPageUrl || '').trim();
-  const configuredPattern = configured ? toChromeMatchPattern(configured) : null;
+  const configuredUrls = Array.isArray(settings.target?.reportPageUrls) ? settings.target.reportPageUrls : [];
+  const configuredPatterns = configuredUrls.map(toChromeMatchPattern).filter(Boolean);
 
   const tabs = await chrome.tabs.query({
     url: [
-      'https://*/realtime_report.php*',
-      'http://*/realtime_report.php*',
-      ...(configuredPattern ? [configuredPattern] : []),
-      'http://127.0.0.1:5500/References/*Real-Time*ALL-ACTIVE.html'
+      ...configuredPatterns
     ]
   });
   return tabs || [];
@@ -65,7 +62,13 @@ async function publishToGateway(baseUrl, token, snapshot) {
   if (!res.ok) {
     return { success: false, error: `publish_failed_http_${res.status}` };
   }
-  await setSettings({ runtime: { lastSnapshotAt: nowIso(), lastError: null } });
+  await setSettings({
+    runtime: {
+      scraperState: 'Live (monitoring DOM changes)',
+      lastSnapshotAt: nowIso(),
+      lastError: null
+    }
+  });
   return { success: true };
 }
 
@@ -120,9 +123,19 @@ async function tick(reason = 'alarm') {
   }
 
   if (published > 0) {
-    await setSettings({ runtime: { scraperState: `Idle (published ${published}/${scraped})`, lastError: null } });
+    await setSettings({
+      runtime: {
+        scraperState: `Live (published ${published}/${scraped}; monitoring)`,
+        lastError: null
+      }
+    });
   } else if (scraped > 0) {
-    await setSettings({ runtime: { scraperState: `Idle (scraped ${scraped}, published 0)`, lastError: 'publish_failed_or_skipped' } });
+    await setSettings({
+      runtime: {
+        scraperState: `Monitoring (scraped ${scraped}, published 0)`,
+        lastError: 'publish_failed_or_skipped'
+      }
+    });
   }
 }
 

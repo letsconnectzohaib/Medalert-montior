@@ -239,8 +239,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // --- On-change streaming (preferred) ---
 let throttleHandle = null;
 let lastPayloadSig = '';
+let lastSentAt = 0;
 
-function scheduleEmit(throttleMs) {
+function scheduleEmit(throttleMs, opts = {}) {
   if (throttleHandle) return;
   throttleHandle = setTimeout(async () => {
     throttleHandle = null;
@@ -252,8 +253,10 @@ function scheduleEmit(throttleMs) {
         agents: snapshot.agents?.map((a) => [a.user, a.stateBucket, a.mmss, a.status, a.pauseCode]),
         waiting: snapshot.waitingCalls?.map((c) => [c.phone, c.status, c.dialTime])
       });
-      if (sig === lastPayloadSig) return;
+      const force = !!opts.force;
+      if (!force && sig === lastPayloadSig) return;
       lastPayloadSig = sig;
+      lastSentAt = Date.now();
       chrome.runtime.sendMessage({ type: 'pro_snapshot', snapshot }, () => {
         // ignore errors when extension is reloading
       });
@@ -275,14 +278,28 @@ async function getScrapeConfig() {
 
 async function startStreaming() {
   const cfg = await getScrapeConfig();
-  if (cfg.mode !== 'onChange') return;
+  const mode = cfg.mode || 'onChange';
 
-  const target = document.querySelector('table[width="860"]') || document.body;
-  const observer = new MutationObserver(() => scheduleEmit(cfg.throttleMs));
-  observer.observe(target, { childList: true, subtree: true, characterData: true });
+  // Always emit one snapshot immediately when the script loads.
+  scheduleEmit(cfg.throttleMs, { force: true });
 
-  // Emit one snapshot immediately.
-  scheduleEmit(cfg.throttleMs);
+  if (mode === 'onChange') {
+    const target = document.querySelector('table[width="860"]') || document.body;
+    const observer = new MutationObserver(() => scheduleEmit(cfg.throttleMs, { force: false }));
+    observer.observe(target, { childList: true, subtree: true, characterData: true });
+  }
+
+  // Heartbeat mode (and fallback for onChange).
+  // If Vicidial refreshes via full reload, this still works because the script re-runs and emits.
+  // If Vicidial updates without DOM mutations (rare), this ensures we still publish snapshots.
+  if (Number(cfg.pollMs) > 0) {
+    const intervalMs = Math.max(1000, Number(cfg.pollMs) || 60000);
+    setInterval(() => {
+      // Force send on heartbeat so operators can trust "every 4 seconds" behavior.
+      // Still throttled by throttleMs so we don't spam on tight intervals.
+      scheduleEmit(cfg.throttleMs, { force: true });
+    }, intervalMs);
+  }
 }
 
 startStreaming();

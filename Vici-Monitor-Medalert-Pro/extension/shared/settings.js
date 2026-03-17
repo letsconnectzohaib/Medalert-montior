@@ -2,8 +2,9 @@ const DEFAULTS = {
   gatewayBaseUrl: 'http://localhost:3100',
   auth: null,
   target: {
-    // Exact page URL to look for (prod or dev). Used by background tab discovery.
-    reportPageUrl: 'https://axcl2s.dialerhosting.com/Xcl2s6wgd/realtime_report.php'
+    // One or more exact Vicidial realtime report URLs to target.
+    // Background tab discovery uses these to find tabs to scrape.
+    reportPageUrls: ['https://axcl2s.dialerhosting.com/Xcl2s6wgd/realtime_report.php']
   },
   scrape: {
     // Primary mode: emit snapshot when DOM changes (page refresh rate drives it, e.g. 4s).
@@ -20,13 +21,31 @@ const DEFAULTS = {
 
 export async function getSettings() {
   const data = await chrome.storage.local.get(['gatewayBaseUrl', 'auth', 'target', 'scrape', 'runtime']);
-  return {
+  const rawTarget = data.target || {};
+
+  // Back-compat migration: older builds stored a single `reportPageUrl`.
+  const migratedUrls = Array.isArray(rawTarget.reportPageUrls) ? rawTarget.reportPageUrls : [];
+  if (!migratedUrls.length && typeof rawTarget.reportPageUrl === 'string' && rawTarget.reportPageUrl.trim()) {
+    migratedUrls.push(rawTarget.reportPageUrl.trim());
+  }
+
+  const settings = {
     gatewayBaseUrl: data.gatewayBaseUrl || DEFAULTS.gatewayBaseUrl,
     auth: data.auth || DEFAULTS.auth,
-    target: { ...DEFAULTS.target, ...(data.target || {}) },
+    target: { ...DEFAULTS.target, ...(data.target || {}), reportPageUrls: migratedUrls.length ? migratedUrls : DEFAULTS.target.reportPageUrls },
     scrape: { ...DEFAULTS.scrape, ...(data.scrape || {}) },
     runtime: data.runtime || DEFAULTS.runtime
   };
+
+  // Persist migration if needed.
+  if (typeof rawTarget.reportPageUrl === 'string') {
+    const cleaned = { ...(data.target || {}) };
+    delete cleaned.reportPageUrl;
+    cleaned.reportPageUrls = settings.target.reportPageUrls;
+    await chrome.storage.local.set({ target: cleaned });
+  }
+
+  return settings;
 }
 
 export async function setSettings(partial) {
