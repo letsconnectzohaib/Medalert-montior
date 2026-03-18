@@ -1,14 +1,40 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vicidial Monitor Pro</title>
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="./app.js"></script>
-  </body>
-</html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#080c12" />
+        <meta name="color-scheme" content="dark" />
+        <title>Vicidial Monitor Pro</title>
+        <meta
+            name="description"
+            content="Realtime Vicidial operations intelligence — live monitoring, shift analytics, alerts, and AI-powered insights."
+        />
 
+        <!-- Preconnect for font performance -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+        <!-- Inter font — used by the design system -->
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+            rel="stylesheet"
+        />
+
+        <link rel="stylesheet" href="./styles.css" />
+
+        <!-- Prevent flash of unstyled content -->
+        <style>
+            html {
+                background: #080c12;
+            }
+            #root {
+                min-height: 100vh;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="./app.js"></script>
+    </body>
+</html>
