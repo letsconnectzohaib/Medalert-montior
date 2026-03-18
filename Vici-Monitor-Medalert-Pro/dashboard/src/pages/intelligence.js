@@ -11,6 +11,10 @@ import {
   setStatus,
 } from "./intelligenceHelpers.js";
 import { renderLoadedDashboard } from "./intelligenceSections.js";
+import { renderHeatmap, generateHourlyHeatmapData } from "../ui/heatmap.js";
+import { renderAdvancedTimeSeries, renderCorrelationMatrix } from "../ui/advancedCharts.js";
+import { renderInteractiveDrilldown } from "../ui/interactiveCharts.js";
+import { renderPredictiveDashboard } from "../ui/predictiveCharts.js";
 
 async function populateShiftDates(state) {
   const host = document.getElementById("in_date_list");
