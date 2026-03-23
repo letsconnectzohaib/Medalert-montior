@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Save, RefreshCw, Settings2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import * as Tabs from '@radix-ui/react-tabs'
@@ -64,7 +64,7 @@ export default function Settings() {
         </Button>
       </div>
 
-      <Tabs defaultValue="gateway">
+      <Tabs.Root defaultValue="gateway">
         <TabsList>
           <TabsTrigger value="gateway">Gateway</TabsTrigger>
           <TabsTrigger value="shift">Shift</TabsTrigger>
@@ -80,7 +80,7 @@ export default function Settings() {
           <TabsContent value="alerts"><PanelAlerts {...panelProps} /></TabsContent>
           <TabsContent value="notifications"><PanelSlack {...panelProps} /></TabsContent>
         </React.Fragment>
-      </Tabs>
+      </Tabs.Root>
     </div>
   )
 }
