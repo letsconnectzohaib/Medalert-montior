@@ -20,29 +20,51 @@ export function formatPct(n) {
 
 export function formatDuration(seconds) {
   if (seconds == null || isNaN(seconds)) return '—'
-  const s = Math.round(seconds)
-  if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60)
-  const rem = s % 60
-  if (m < 60) return rem > 0 ? `${m}m ${rem}s` : `${m}m`
-  const h = Math.floor(m / 60)
-  const rm = m % 60
-  return rm > 0 ? `${h}h ${rm}m` : `${h}h`
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  return `${hours}h ${minutes}m`
 }
 
 export function formatTimestamp(ts) {
   if (!ts) return '—'
-  return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const date = new Date(ts)
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
-export function formatDate(ts) {
-  if (!ts) return '—'
-  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+export function formatDate(dateString) {
+  if (!dateString) return '—'
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
 }
 
 export function todayDateString() {
-  const d = new Date()
-  return d.toISOString().slice(0, 10)
+  return new Date().toISOString().slice(0, 10)
+}
+
+export function formatBytes(bytes) {
+  if (bytes == null || isNaN(bytes)) return '—'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let size = bytes
+  let unitIndex = 0
+  
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex++
+  }
+  
+  return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
 export function clamp(n, min, max) {

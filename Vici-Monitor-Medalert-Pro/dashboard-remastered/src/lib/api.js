@@ -64,6 +64,17 @@ export async function updateAdminSettings(baseUrl, token, settingsPatch) {
   return { success: true, settings: json.settings }
 }
 
+export async function fetchIntelligenceData(baseUrl, token, date) {
+  const res = await fetch(
+    `${normalizeBaseUrl(baseUrl)}/api/intelligence/data?date=${encodeURIComponent(date)}`,
+    { headers: { ...authHeaders(token) } },
+  )
+  const json = await res.json().catch(() => null)
+  if (!res.ok || !json?.success)
+    return { success: false, error: json?.error || `HTTP ${res.status}` }
+  return { success: true, data: json }
+}
+
 export async function fetchShiftIntelligence(baseUrl, token, date) {
   const res = await fetch(
     `${normalizeBaseUrl(baseUrl)}/api/shift/intelligence?date=${encodeURIComponent(date)}`,

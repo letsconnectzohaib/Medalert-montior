@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { MessageSquare, Send, TestTube } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useApp } from '@/context/AppContext'

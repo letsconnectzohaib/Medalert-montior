@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Bell, CheckCircle, AlertTriangle, Info } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useApp } from '@/context/AppContext'
