@@ -21,6 +21,117 @@ function createIntelligenceRoutes({
 }) {
   const router = express.Router();
 
+  router.get("/api/intelligence/data", requireAuth, async (req, res) => {
+    try {
+      const date = req.query.date || (await computeShiftDate(new Date().toISOString()));
+      const insights = await computeInsights({ shiftDate: toIsoDate(date) });
+      
+      // Mock intelligence data structure for React dashboard
+      const mockData = {
+        success: true,
+        data: {
+          overallScore: 85,
+          scoreTrend: 5.2,
+          efficiency: 78.5,
+          utilization: 82.1,
+          serviceLevel: 91.3,
+          qualityScore: 87.8,
+          callVolume: 1247,
+          callVolumeTrend: 3.8,
+          avgResponseTime: 28,
+          responseTimeTrend: -2,
+          conversionRate: 12.4,
+          conversionRateTrend: 1.2,
+          agentProductivity: 89.2,
+          productivityTrend: 4.1,
+          predictions: [
+            {
+              metric: "Call Volume",
+              currentValue: "1,247",
+              predictedValue: "1,320",
+              confidence: 85,
+              timeframe: "Next 24h",
+              trend: "up",
+              change: 5.8
+            },
+            {
+              metric: "Response Time",
+              currentValue: "28s",
+              predictedValue: "25s",
+              confidence: 78,
+              timeframe: "Next 24h",
+              trend: "up",
+              change: -10.7
+            },
+            {
+              metric: "Agent Efficiency",
+              currentValue: "89.2%",
+              predictedValue: "91.5%",
+              confidence: 82,
+              timeframe: "Next shift",
+              trend: "up",
+              change: 2.3
+            }
+          ],
+          insights: [
+            {
+              severity: "medium",
+              category: "Performance",
+              description: "Call volume increased by 15% compared to yesterday",
+              impact: "May require additional staffing"
+            },
+            {
+              severity: "low",
+              category: "Quality",
+              description: "Average response time improved by 10%",
+              impact: "Positive customer experience impact"
+            }
+          ],
+          recommendations: [
+            {
+              priority: "high",
+              category: "Staffing",
+              title: "Increase agent coverage",
+              description: "Consider adding 2-3 agents during peak hours (2-4 PM)",
+              expectedImpact: "Reduce wait times by 30%"
+            },
+            {
+              priority: "medium",
+              category: "Training",
+              title: "Refine call handling procedures",
+              description: "Focus on reducing average handle time by 15 seconds",
+              expectedImpact: "Improve overall efficiency by 5%"
+            }
+          ],
+          trends: [
+            {
+              metric: "Daily Call Volume",
+              change: 12.5,
+              period: "7 days"
+            },
+            {
+              metric: "Agent Productivity",
+              change: 4.2,
+              period: "7 days"
+            },
+            {
+              metric: "Service Level",
+              change: -1.8,
+              period: "7 days"
+            }
+          ]
+        }
+      };
+      
+      res.json(mockData);
+    } catch (e) {
+      res.status(500).json({
+        success: false,
+        error: e?.message || "intelligence_data_failed",
+      });
+    }
+  });
+
   router.get("/api/intelligence/insights", requireAuth, async (req, res) => {
     try {
       const date =
