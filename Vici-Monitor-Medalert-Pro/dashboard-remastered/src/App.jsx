@@ -24,6 +24,11 @@ function PageRouter() {
       }
     }
 
+    // Set initial hash if none exists
+    if (!window.location.hash) {
+      window.location.hash = page || 'overview'
+    }
+
     handleHashChange()
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)

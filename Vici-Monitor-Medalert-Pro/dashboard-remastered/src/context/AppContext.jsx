@@ -101,8 +101,13 @@ export function AppProvider({ children }) {
 
   /* ── Navigation ── */
   const navigate = useCallback((page) => {
+    console.log('Navigating to:', page)
     dispatch({ type: 'SET_PAGE', payload: page })
     savePage(page)
+    // Update URL hash for proper routing (only if different)
+    if (window.location.hash.slice(1) !== page) {
+      window.location.hash = page
+    }
   }, [])
 
   /* ── Auth ── */
@@ -129,37 +134,47 @@ export function AppProvider({ children }) {
       wsRef.current.close()
     }
     const url = wsUrl(baseUrl)
+    console.log('Connecting WebSocket to:', url)
     dispatch({ type: 'SET_WS_STATUS', payload: 'connecting' })
-    const ws = new WebSocket(url)
-    wsRef.current = ws
+    
+    try {
+      const ws = new WebSocket(url)
+      wsRef.current = ws
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'subscribe', token }))
-      dispatch({ type: 'SET_WS_STATUS', payload: 'connected' })
-    }
-
-    ws.onmessage = (evt) => {
-      let msg
-      try { msg = JSON.parse(evt.data) } catch { return }
-      if (msg.type === 'snapshot') {
-        dispatch({ type: 'SNAPSHOT', payload: msg.data ?? msg })
-      } else if (msg.type === 'error' && msg.code === 'unauthorized') {
-        dispatch({ type: 'SET_WS_STATUS', payload: 'unauthorized' })
-        toast('Session expired — please log in again', 'error')
-        logout()
+      ws.onopen = () => {
+        console.log('WebSocket connected')
+        ws.send(JSON.stringify({ type: 'subscribe', token }))
+        dispatch({ type: 'SET_WS_STATUS', payload: 'connected' })
       }
-    }
 
-    ws.onerror = () => {
-      dispatch({ type: 'SET_WS_STATUS', payload: 'disconnected' })
-    }
+      ws.onmessage = (evt) => {
+        let msg
+        try { msg = JSON.parse(evt.data) } catch { return }
+        if (msg.type === 'snapshot') {
+          dispatch({ type: 'SNAPSHOT', payload: msg.data ?? msg })
+        } else if (msg.type === 'error' && msg.code === 'unauthorized') {
+          dispatch({ type: 'SET_WS_STATUS', payload: 'unauthorized' })
+          toast('Session expired — please log in again', 'error')
+          logout()
+        }
+      }
 
-    ws.onclose = () => {
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error)
+        dispatch({ type: 'SET_WS_STATUS', payload: 'disconnected' })
+      }
+
+      ws.onclose = () => {
+        console.log('WebSocket closed')
+        dispatch({ type: 'SET_WS_STATUS', payload: 'disconnected' })
+        reconnectRef.current = setTimeout(() => {
+          const { token: t, baseUrl: b } = state
+          if (t) connectWs(b, t)
+        }, 1500)
+      }
+    } catch (error) {
+      console.error('Failed to create WebSocket:', error)
       dispatch({ type: 'SET_WS_STATUS', payload: 'disconnected' })
-      reconnectRef.current = setTimeout(() => {
-        const { token: t, baseUrl: b } = state
-        if (t) connectWs(b, t)
-      }, 1500)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logout, toast])
