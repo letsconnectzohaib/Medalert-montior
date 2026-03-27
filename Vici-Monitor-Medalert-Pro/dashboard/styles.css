@@ -514,6 +514,191 @@ textarea {
     display: none;
 }
 
+/* ─── Enhanced Shift Analytics Styles ──────────────────────────────────── */
+.shiftHeader {
+  background: linear-gradient(135deg, var(--panel) 0%, rgba(0,0,0,0.3) 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.shiftTitle {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 12px 0;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.shiftSubtitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.shiftSubtitle .badge.success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  font-weight: 700;
+  padding: 4px 12px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.shiftSubtitle .timestamp {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.shiftCards.enhanced {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.chartsSection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.chartContainer {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+}
+
+.chartTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.miniCard {
+  background: linear-gradient(135deg, var(--panel) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.miniCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+}
+
+.miniCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  border-color: var(--primary);
+}
+
+.miniTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.miniBig {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.miniSub {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Enhanced table styles */
+.tableWrap {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+}
+
+.tableWrap table {
+  margin: 0;
+  border-radius: 0;
+}
+
+.tableWrap th {
+  background: linear-gradient(135deg, var(--muted) 0%, var(--border) 100%);
+  color: var(--text);
+  font-weight: 700;
+  padding: 12px 8px;
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tableWrap td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  transition: background 0.2s ease;
+}
+
+.tableWrap tr:hover td {
+  background: rgba(255,255,255,0.03);
+}
+
+.tableWrap tr:last-child td {
+  border-bottom: none;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .kpiRow {
+    grid-template-columns: 1fr;
+  }
+  
+  .chartsSection {
+    grid-template-columns: 1fr;
+  }
+  
+  .shiftHeader {
+    padding: 16px;
+  }
+  
+  .shiftTitle {
+    font-size: 20px;
+  }
+}
+
 /* ─── Badges / Status Pills ──────────────────────────────────── */
 .topBadges {
     display: flex;
