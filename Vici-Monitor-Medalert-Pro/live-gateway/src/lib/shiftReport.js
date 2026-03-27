@@ -21,6 +21,17 @@ function hourLabel(h) {
   return `${hh}:00`;
 }
 
+function formatNumber(num) {
+  return new Intl.NumberFormat().format(num);
+}
+
+function formatDuration(seconds) {
+  if (!seconds || seconds === 0) return '0s';
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return minutes > 0 ? minutes + 'm ' + secs + 's' : secs + 's';
+}
+
 function buildCallflowSeriesMap(rows) {
   const byHour = {};
   for (const r of rows || []) byHour[Number(r.hour)] = r;
@@ -33,65 +44,43 @@ function simpleBar(width, value, max, color) {
 }
 
 function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflowRows, peaks, rollups, compare }) {
-  const title = `Shift Report — ${shiftDate}`;
+  const title = `Shift Performance Report — ${shiftDate}`;
   const cfByHour = buildCallflowSeriesMap(callflowRows);
   const maxWait = Math.max(0, ...callflowRows.map((r) => Number(r.calls_waiting_max || 0)));
   const maxActive = Math.max(0, ...callflowRows.map((r) => Number(r.active_calls_max || 0)));
 
-  // Enhanced KPIs with better formatting
-  const topKpis = [
-    { k: '📅 Shift Window', v: `${shiftWindow.start} → ${shiftWindow.end}`, icon: '📅' },
-    { k: '⏰ Peak Waiting Hour', v: peaks.waiting ? `${hourLabel(peaks.waiting.hour)} (max: ${peaks.waiting.calls_waiting_max})` : '—', icon: '⏰' },
-    { k: '👥 Peak Agents Hour', v: peaks.agents ? `${hourLabel(peaks.agents.hour)} (total: ${peaks.agents.total_agents})` : '—', icon: '👥' },
-    { k: '📊 Full Shift Waiting Max', v: String(rollups.callflow.fullShift.calls_waiting_max ?? 0), icon: '📊' },
-    { k: '📈 Full Shift Active Max', v: String(rollups.callflow.fullShift.active_calls_max ?? 0), icon: '📈' },
-    { k: '⚡ Full Shift Waiting Avg', v: fmt(rollups.callflow.fullShift.calls_waiting_avg ?? 0, 1), icon: '⚡' },
-    { k: '🎯 Full Shift Active Avg', v: fmt(rollups.callflow.fullShift.active_calls_avg ?? 0, 1), icon: '🎯' }
-  ];
+  // Calculate comprehensive analytics
+  const totalCalls = rollups.callflow.fullShift.total_calls || 0;
+  const totalAnswered = rollups.callflow.fullShift.total_answered || 0;
+  const answerRate = totalCalls > 0 ? ((totalAnswered / totalCalls) * 100).toFixed(1) : 0;
+  const abandonRate = (100 - parseFloat(answerRate)).toFixed(1);
+  const avgHandleTime = rollups.callflow.fullShift.avg_handle_time || 0;
+  const avgWaitTime = rollups.callflow.fullShift.calls_waiting_avg || 0;
+  const peakHour = peaks.agents?.hour || 'N/A';
+  const totalAgents = rollups.buckets.fullShift.totalAgents || 0;
 
-  const bucketKeys = ['oncall_gt_5m', 'oncall_gt_1m', 'waiting_gt_1m', 'waiting_gt_5m', 'paused_gt_1m', 'in_call', 'ready', 'unknown'];
-  const bucketColors = {
-    'oncall_gt_5m': '#8b5cf6',
-    'oncall_gt_1m': '#a78bfa', 
-    'waiting_gt_1m': '#3b82f6',
-    'waiting_gt_5m': '#1e40af',
-    'paused_gt_1m': '#f59e0b',
-    'in_call': '#10b981',
-    'ready': '#06b6d4',
-    'unknown': '#6b7280'
+  // Agent state distribution for pie chart
+  const agentStates = {
+    'In Call': rollups.buckets.fullShift.totals?.in_call || 0,
+    'Ready': rollups.buckets.fullShift.totals?.ready || 0,
+    'Waiting < 1m': rollups.buckets.fullShift.totals?.waiting_lt_1m || 0,
+    'Waiting > 1m': rollups.buckets.fullShift.totals?.waiting_gt_1m || 0,
+    'Paused': rollups.buckets.fullShift.totals?.paused_gt_1m || 0,
+    'On Call > 1m': rollups.buckets.fullShift.totals?.oncall_gt_1m || 0,
+    'On Call > 5m': rollups.buckets.fullShift.totals?.oncall_gt_5m || 0,
   };
 
-  const bucketLabel = (k) =>
-    k === 'oncall_gt_5m'
-      ? '🟣 On Call > 5m'
-      : k === 'oncall_gt_1m'
-        ? '🔮 On Call > 1m'
-        : k === 'waiting_gt_5m'
-          ? '🔴 Wait > 5m'
-          : k === 'waiting_gt_1m'
-            ? '🟡 Wait > 1m'
-            : k === 'paused_gt_1m'
-              ? '🟡 Paused > 1m'
-              : k === 'in_call'
-                ? '🟢 In Call'
-                : k === 'ready'
-                  ? '🔵 Ready'
-                  : k;
-
-  // Enhanced bar chart function
-  function enhancedBar(width, value, max, color, label) {
-    const w = max > 0 ? Math.max(0, Math.min(width, Math.round((width * value) / max))) : 0;
-    const percentage = max > 0 ? Math.round((value / max) * 100) : 0;
-    return `
-      <div class="enhancedBar">
-        <div class="barLabel">${label}: ${value}</div>
-        <div class="barContainer">
-          <div class="bar" style="width:${w}px;background:${color};border-radius:4px;"></div>
-          <div class="barPercentage">${percentage}%</div>
-        </div>
-      </div>
-    `;
-  }
+  // Performance metrics for charts
+  const hourlyPerformance = shiftHours.map(h => {
+    const row = cfByHour[Number(h)] || {};
+    return {
+      hour: h,
+      waiting: Number(row.calls_waiting_max || 0),
+      active: Number(row.active_calls_max || 0),
+      answered: Number(row.calls_answered || 0),
+      samples: Number(row.samples || 0)
+    };
+  });
 
   return `<!doctype html>
 <html>
@@ -99,289 +88,211 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${esc(title)}</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root{
-      --bg:#0f172a;
-      --panel:#1e293b;
-      --card:#334155;
-      --text:#f1f5f9;
-      --muted:#94a3b8;
-      --border:rgba(255,255,255,.12);
-      --primary:#3b82f6;
-      --accent:#8b5cf6;
-      --success:#10b981;
-      --warning:#f59e0b;
-      --danger:#ef4444;
-      --gradient:linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    :root {
+      --bg: #ffffff;
+      --panel: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --grid: #94a3b8;
     }
     
     @media print { 
-      body{background:#fff !important;color:#111 !important} 
-      .card{break-inside:avoid !important;box-shadow:none !important}
-      .enhancedBar{break-inside:avoid !important}
+      body { background: #fff !important; color: #111 !important; }
+      .card { break-inside: avoid !important; box-shadow: none !important; }
+      .chart-container { break-inside: avoid !important; }
+      .no-print { display: none !important; }
     }
     
     * {
       box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
     
     body {
-      margin: 0;
-      font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
-      padding: 20px;
+      padding: 40px 20px;
     }
     
     .container {
-      max-width: 1200px;
+      max-width: 1400px;
       margin: 0 auto;
     }
     
     .header {
-      background: var(--gradient);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 32px;
-      margin-bottom: 32px;
       text-align: center;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      margin-bottom: 40px;
+      padding-bottom: 30px;
+      border-bottom: 2px solid var(--border);
     }
     
     .title {
       font-size: 32px;
-      font-weight: 900;
-      margin: 0 0 8px 0;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
     }
     
     .subtitle {
       color: var(--muted);
-      font-size: 14px;
-      margin: 0;
+      font-size: 16px;
     }
     
-    .badge {
-      display: inline-block;
-      background: var(--success);
-      color: white;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 700;
-      margin-left: 12px;
-      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
-    }
-    
-    .kpiGrid {
+    .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
-      margin-bottom: 32px;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+      margin-bottom: 40px;
     }
     
-    .kpiCard {
+    .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 24px;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s ease;
+      padding: 30px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     }
     
-    .kpiCard::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
-    }
-    
-    .kpiCard:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 24px rgba(0,0,0,0.2);
-    }
-    
-    .kpiIcon {
-      font-size: 18px;
-      margin-bottom: 8px;
-      display: block;
-    }
-    
-    .kpiLabel {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 8px;
-    }
-    
-    .kpiValue {
-      font-size: 28px;
-      font-weight: 900;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-    
-    .section {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 32px;
-      margin-bottom: 32px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    }
-    
-    .sectionTitle {
+    .card-title {
       font-size: 20px;
-      font-weight: 800;
-      margin: 0 0 24px 0;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    
-    .enhancedBar {
-      margin-bottom: 16px;
-      padding: 16px;
-      background: rgba(255,255,255,0.02);
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-    
-    .barLabel {
-      font-size: 12px;
       font-weight: 600;
       color: var(--text);
-      margin-bottom: 8px;
-    }
-    
-    .barContainer {
+      margin-bottom: 20px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
     
-    .bar {
-      height: 12px;
-      border-radius: 4px;
-      transition: all 0.3s ease;
-    }
-    
-    .barPercentage {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--muted);
-      min-width: 40px;
-      text-align: right;
-    }
-    
-    .miniGrid {
+    .kpi-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
+      gap: 20px;
+      margin-bottom: 30px;
     }
     
-    .miniCard {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
+    .kpi-item {
       text-align: center;
-      transition: all 0.3s ease;
+      padding: 20px;
+      background: var(--panel);
+      border-radius: 8px;
+      border-left: 4px solid var(--primary);
     }
     
-    .miniCard:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    .kpi-value {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 5px;
     }
     
-    .miniTitle {
+    .kpi-label {
+      font-size: 14px;
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      font-weight: 500;
     }
     
-    .miniBig {
-      font-size: 32px;
-      font-weight: 900;
+    .chart-container {
+      position: relative;
+      height: 400px;
+      margin: 20px 0;
+    }
+    
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    
+    .insights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+    
+    .insight-card {
+      padding: 20px;
+      background: var(--panel);
+      border-radius: 8px;
+      border-left: 3px solid var(--primary);
+    }
+    
+    .insight-title {
+      font-size: 14px;
+      font-weight: 600;
       color: var(--text);
       margin-bottom: 8px;
     }
     
-    .miniSub {
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.4;
+    .insight-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 5px;
     }
     
-    table {
+    .insight-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    
+    .data-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
-      background: var(--card);
-      border-radius: 12px;
-      overflow: hidden;
+      margin-top: 20px;
+      font-size: 14px;
     }
     
-    th, td {
-      padding: 12px 8px;
+    .data-table th,
+    .data-table td {
+      padding: 12px;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
     
-    th {
+    .data-table th {
       background: var(--panel);
+      font-weight: 600;
       color: var(--text);
-      font-weight: 700;
-      font-size: 12px;
       text-transform: uppercase;
+      font-size: 12px;
       letter-spacing: 0.5px;
     }
     
-    tr:hover td {
-      background: rgba(255,255,255,0.02);
+    .data-table tr:hover {
+      background: var(--panel);
     }
     
-    tr:last-child td {
-      border-bottom: none;
-    }
+    .metric-good { color: var(--success); }
+    .metric-warning { color: var(--warning); }
+    .metric-danger { color: var(--danger); }
     
-    .chartPlaceholder {
-      height: 200px;
-      background: linear-gradient(135deg, var(--panel) 0%, var(--card) 100%);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .footer {
+      text-align: center;
+      margin-top: 50px;
+      padding-top: 30px;
+      border-top: 1px solid var(--border);
       color: var(--muted);
-      font-size: 14px;
-      margin: 16px 0;
+      font-size: 12px;
     }
     
     @media (max-width: 768px) {
-      .kpiGrid {
-        grid-template-columns: 1fr;
-      }
-      .miniGrid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-      .section {
-        padding: 20px;
-      }
+      .grid { grid-template-columns: 1fr; }
+      .chart-grid { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      body { padding: 20px 10px; }
     }
   </style>
 </head>
@@ -389,111 +300,252 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
   <div class="container">
     <div class="header">
       <div class="title">${esc(title)}</div>
-      <div class="subtitle">Generated at ${esc(new Date().toISOString())} <span class="badge">Premium Report</span></div>
+      <div class="subtitle">Generated on ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
     </div>
 
-    <div class="section">
-      <div class="sectionTitle">📊 Key Performance Indicators</div>
-      <div class="kpiGrid">
-        ${topKpis.map((x) => `
-          <div class="kpiCard">
-            <div class="kpiIcon">${x.icon}</div>
-            <div class="kpiLabel">${x.k}</div>
-            <div class="kpiValue">${esc(x.v)}</div>
+    <!-- Key Performance Indicators -->
+    <div class="card">
+      <div class="card-title">📊 Key Performance Indicators</div>
+      <div class="kpi-grid">
+        <div class="kpi-item">
+          <div class="kpi-value">${formatNumber(totalCalls)}</div>
+          <div class="kpi-label">Total Calls</div>
+        </div>
+        <div class="kpi-item">
+          <div class="kpi-value">${answerRate}%</div>
+          <div class="kpi-label">Answer Rate</div>
+        </div>
+        <div class="kpi-item">
+          <div class="kpi-value">${abandonRate}%</div>
+          <div class="kpi-label">Abandon Rate</div>
+        </div>
+        <div class="kpi-item">
+          <div class="kpi-value">${formatDuration(avgHandleTime)}</div>
+          <div class="kpi-label">Avg Handle Time</div>
+        </div>
+        <div class="kpi-item">
+          <div class="kpi-value">${formatDuration(avgWaitTime)}</div>
+          <div class="kpi-label">Avg Wait Time</div>
+        </div>
+        <div class="kpi-item">
+          <div class="kpi-value">${totalAgents}</div>
+          <div class="kpi-label">Total Agents</div>
+        </div>
+        <div class="kpi-item">
+          <div class="kpi-value">${peakHour}:00</div>
+          <div class="kpi-label">Peak Hour</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent State Distribution Chart -->
+    <div class="card">
+      <div class="card-title">👥 Agent State Distribution</div>
+      <div class="chart-container">
+        <canvas id="agentStateChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Performance Trends -->
+    <div class="card">
+      <div class="card-title">📈 Performance Trends</div>
+      <div class="chart-grid">
+        <div>
+          <div style="font-weight: 600; margin-bottom: 10px; color: var(--text);">Call Volume Trends</div>
+          <div class="chart-container" style="height: 300px;">
+            <canvas id="callVolumeChart"></canvas>
           </div>
-        `).join('')}
+        </div>
+        <div>
+          <div style="font-weight: 600; margin-bottom: 10px; color: var(--text);">Service Level Analysis</div>
+          <div class="chart-container" style="height: 300px;">
+            <canvas id="serviceLevelChart"></canvas>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="sectionTitle">👥 Agent State Distribution</div>
-      <div class="miniGrid">
-        <div><div class="miniTitle">🕐 First Hour</div><div class="miniBig">${esc(String(rollups.buckets.firstHour.totalAgents ?? 0))}</div><div class="miniSub">${esc(bucketKeys.slice(0,4).map((k)=>`${bucketLabel(k)}=${rollups.buckets.firstHour.totals?.[k]||0}`).join(' • '))}</div></div>
-        <div><div class="miniTitle">⏰ Half Shift</div><div class="miniBig">${esc(String(rollups.buckets.halfShift.totalAgents ?? 0))}</div><div class="miniSub">${esc(bucketKeys.slice(0,4).map((k)=>`${bucketLabel(k)}=${rollups.buckets.halfShift.totals?.[k]||0}`).join(' • '))}</div></div>
-        <div><div class="miniTitle">🎯 Full Shift</div><div class="miniBig">${esc(String(rollups.buckets.fullShift.totalAgents ?? 0))}</div><div class="miniSub">${esc(bucketKeys.slice(0,4).map((k)=>`${bucketLabel(k)}=${rollups.buckets.fullShift.totals?.[k]||0}`).join(' • '))}</div></div>
-        <div><div class="miniTitle">📈 Yesterday (Full)</div><div class="miniBig">${esc(String(compare.buckets.prevFull.totalAgents ?? 0))}</div><div class="miniSub">Δ total agents: ${esc(String((rollups.buckets.fullShift.totalAgents ?? 0) - (compare.buckets.prevFull.totalAgents ?? 0)))}</div></div>
+    <!-- Performance Insights -->
+    <div class="card">
+      <div class="card-title">🎯 Performance Insights</div>
+      <div class="insights-grid">
+        <div class="insight-card">
+          <div class="insight-title">Peak Performance</div>
+          <div class="insight-value">${peakHour}:00</div>
+          <div class="insight-desc">Highest agent activity and call volume during this hour</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">Service Quality</div>
+          <div class="insight-value ${answerRate >= 95 ? 'metric-good' : answerRate >= 90 ? 'metric-warning' : 'metric-danger'}">${answerRate}%</div>
+          <div class="insight-desc">${answerRate >= 95 ? 'Excellent service quality' : answerRate >= 90 ? 'Good service quality' : 'Service quality needs improvement'}</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">Efficiency Score</div>
+          <div class="insight-value">${Math.round(100 - parseFloat(abandonRate))}%</div>
+          <div class="insight-desc">Overall call handling efficiency</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">Avg Wait Time</div>
+          <div class="insight-value ${avgWaitTime <= 20 ? 'metric-good' : avgWaitTime <= 30 ? 'metric-warning' : 'metric-danger'}">${formatDuration(avgWaitTime)}</div>
+          <div class="insight-desc">${avgWaitTime <= 20 ? 'Excellent wait times' : avgWaitTime <= 30 ? 'Acceptable wait times' : 'Wait times need attention'}</div>
+        </div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="sectionTitle">📈 Call Flow Analysis</div>
-      <div class="miniGrid">
-        <div><div class="miniTitle">🕐 First Hour</div><div class="miniBig">${esc(String(rollups.callflow.firstHour.calls_waiting_max ?? 0))}</div><div class="miniSub">waiting max • active max ${esc(String(rollups.callflow.firstHour.active_calls_max ?? 0))}</div></div>
-        <div><div class="miniTitle">⏰ Half Shift</div><div class="miniBig">${esc(String(rollups.callflow.halfShift.calls_waiting_max ?? 0))}</div><div class="miniSub">waiting avg ${esc(fmt(rollups.callflow.halfShift.calls_waiting_avg ?? 0, 1))}</div></div>
-        <div><div class="miniTitle">🎯 Rest of Shift</div><div class="miniBig">${esc(String(rollups.callflow.rest.calls_waiting_max ?? 0))}</div><div class="miniSub">active avg ${esc(fmt(rollups.callflow.rest.active_calls_avg ?? 0, 1))}</div></div>
-        <div><div class="miniTitle">📊 Yesterday (Full)</div><div class="miniBig">${esc(String(compare.callflow.prevFull.calls_waiting_max ?? 0))}</div><div class="miniSub">Δ waiting max: ${esc(String((rollups.callflow.fullShift.calls_waiting_max ?? 0) - (compare.callflow.prevFull.calls_waiting_max ?? 0)))}</div></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="sectionTitle">⏱️ Hourly Call Flow Trends</div>
-      <div class="chartPlaceholder">
-        📊 Interactive Chart Visualization Available in Live Dashboard
-      </div>
-      <table>
+    <!-- Detailed Hourly Data -->
+    <div class="card">
+      <div class="card-title">📋 Hourly Performance Data</div>
+      <table class="data-table">
         <thead>
           <tr>
-            <th>⏰ Hour</th>
-            <th>⏳ Waiting (Max)</th>
-            <th>📊 Visualization</th>
-            <th>📞 Active (Max)</th>
-            <th>📈 Trend</th>
-            <th>⚡ Waiting (Avg)</th>
-            <th>🎯 Active (Avg)</th>
-            <th>📊 Samples</th>
+            <th>Hour</th>
+            <th>Total Calls</th>
+            <th>Answered</th>
+            <th>Answer Rate</th>
+            <th>Max Waiting</th>
+            <th>Max Active</th>
+            <th>Avg Wait</th>
+            <th>Samples</th>
           </tr>
         </thead>
         <tbody>
-          ${shiftHours
-            .map((h) => {
-              const r = cfByHour[Number(h)] || {};
-              const wMax = Number(r.calls_waiting_max || 0);
-              const aMax = Number(r.active_calls_max || 0);
-              return `
-                <tr>
-                  <td><strong>${esc(hourLabel(h))}</strong></td>
-                  <td>${esc(String(wMax))}</td>
-                  <td>${enhancedBar(100, wMax, maxWait || 1, '#3b82f6', 'Waiting')}</td>
-                  <td>${esc(String(aMax))}</td>
-                  <td>${enhancedBar(100, aMax, maxActive || 1, '#10b981', 'Active')}</td>
-                  <td>${esc(fmt(r.calls_waiting_avg || 0, 1))}</td>
-                  <td>${esc(fmt(r.active_calls_avg || 0, 1))}</td>
-                  <td>${esc(String(r.samples || 0))}</td>
-                </tr>`;
-            })
-            .join('')}
+          ${hourlyPerformance.map(hour => `
+            <tr>
+              <td><strong>${hour.hour}:00</strong></td>
+              <td>${formatNumber(hour.answered + (hour.waiting - hour.answered))}</td>
+              <td>${formatNumber(hour.answered)}</td>
+              <td class="${hour.answered / Math.max(1, hour.answered + (hour.waiting - hour.answered)) >= 0.95 ? 'metric-good' : hour.answered / Math.max(1, hour.answered + (hour.waiting - hour.answered)) >= 0.90 ? 'metric-warning' : 'metric-danger'}">${((hour.answered / Math.max(1, hour.answered + (hour.waiting - hour.answered))) * 100).toFixed(1)}%</td>
+              <td>${hour.waiting}</td>
+              <td>${hour.active}</td>
+              <td>${formatDuration(Math.round((hour.waiting / Math.max(1, hour.samples)) * 60))}</td>
+              <td>${hour.samples}</td>
+            </tr>
+          `).join('')}
         </tbody>
       </table>
     </div>
 
-    <div class="section">
-      <div class="sectionTitle">🎯 Hourly Agent State Breakdown</div>
-      <table>
-        <thead>
-          <tr>
-            <th>⏰ Hour</th>
-            ${bucketKeys.map((k) => `<th style="color:${bucketColors[k]}">${esc(bucketLabel(k))}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${shiftHours
-            .map((h) => {
-              const row = bucketsSeries?.[Number(h)] || {};
-              return `
-                <tr>
-                  <td><strong>${esc(hourLabel(h))}</strong></td>
-                  ${bucketKeys.map((k) => {
-                    const value = row[k] || 0;
-                    const color = bucketColors[k] || '#6b7280';
-                    return `<td style="background:${color}20;color:${color};font-weight:600;text-align:center;border-radius:4px;">${esc(String(value))}</td>`;
-                  }).join('')}
-                </tr>`;
-            })
-            .join('')}
-        </tbody>
-      </table>
+    <div class="footer">
+      <p>Report generated by Vicidial Monitor Pro • Shift Analysis System</p>
+      <p>Data covers shift period: ${shiftWindow.start} to ${shiftWindow.end}</p>
     </div>
   </div>
+
+  <script>
+    // Agent State Pie Chart
+    const agentStateCtx = document.getElementById('agentStateChart').getContext('2d');
+    new Chart(agentStateCtx, {
+      type: 'pie',
+      data: {
+        labels: ${JSON.stringify(Object.keys(agentStates))},
+        datasets: [{
+          data: ${JSON.stringify(Object.values(agentStates))},
+          backgroundColor: [
+            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
+            '#8b5cf6', '#a78bfa', '#f97316', '#6b7280'
+          ],
+          borderWidth: 2,
+          borderColor: '#fff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              padding: 20,
+              font: { size: 12 }
+            }
+          }
+        }
+      }
+    });
+
+    // Call Volume Line Chart
+    const callVolumeCtx = document.getElementById('callVolumeChart').getContext('2d');
+    new Chart(callVolumeCtx, {
+      type: 'line',
+      data: {
+        labels: ${JSON.stringify(hourlyPerformance.map(h => h.hour + ':00'))},
+        datasets: [{
+          label: 'Waiting Calls',
+          data: ${JSON.stringify(hourlyPerformance.map(h => h.waiting))},
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          tension: 0.4
+        }, {
+          label: 'Active Calls',
+          data: ${JSON.stringify(hourlyPerformance.map(h => h.active))},
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+
+    // Service Level Bar Chart
+    const serviceLevelCtx = document.getElementById('serviceLevelChart').getContext('2d');
+    new Chart(serviceLevelCtx, {
+      type: 'bar',
+      data: {
+        labels: ${JSON.stringify(hourlyPerformance.map(h => h.hour + ':00'))},
+        datasets: [{
+          label: 'Answer Rate %',
+          data: ${JSON.stringify(hourlyPerformance.map(h => ((h.answered / Math.max(1, h.answered + (h.waiting - h.answered))) * 100).toFixed(1)))},
+          backgroundColor: ${JSON.stringify(hourlyPerformance.map(h => ((h.answered / Math.max(1, h.answered + (h.waiting - h.answered))) * 100) >= 95 ? '#10b981' : ((h.answered / Math.max(1, h.answered + (h.waiting - h.answered))) * 100) >= 90 ? '#f59e0b' : '#ef4444'))},
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: function(value) {
+                return value + '%';
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Utility functions
+    function formatNumber(num) {
+      return new Intl.NumberFormat().format(num);
+    }
+    
+    function formatDuration(seconds) {
+      if (!seconds || seconds === 0) return '0s';
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return minutes > 0 ? minutes + 'm ' + secs + 's' : secs + 's';
+    }
+  </script>
 </body>
 </html>`;
 }
