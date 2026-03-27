@@ -208,6 +208,42 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
       margin: 20px 0;
     }
     
+    .chart-container-small {
+      position: relative;
+      height: 200px;
+      margin: 10px 0;
+    }
+    
+    .charts-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin: 20px 0;
+    }
+    
+    .chart-item {
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+    }
+    
+    .chart-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .chart-subtitle {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
     .chart-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -291,8 +327,14 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
     @media (max-width: 768px) {
       .grid { grid-template-columns: 1fr; }
       .chart-grid { grid-template-columns: 1fr; }
+      .charts-row { grid-template-columns: repeat(2, 1fr); }
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
       body { padding: 20px 10px; }
+    }
+    
+    @media (max-width: 480px) {
+      .charts-row { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -338,11 +380,34 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
       </div>
     </div>
 
-    <!-- Agent State Distribution Chart -->
+    <!-- Visual Analytics Dashboard -->
     <div class="card">
-      <div class="card-title">👥 Agent State Distribution</div>
-      <div class="chart-container">
-        <canvas id="agentStateChart"></canvas>
+      <div class="card-title">📊 Visual Analytics Dashboard</div>
+      <div class="charts-row">
+        <div class="chart-item">
+          <div class="chart-subtitle">Agent State Distribution</div>
+          <div class="chart-container-small">
+            <canvas id="agentStateChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-item">
+          <div class="chart-subtitle">Performance Radar</div>
+          <div class="chart-container-small">
+            <canvas id="performanceRadarChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-item">
+          <div class="chart-subtitle">Hourly Activity Heat</div>
+          <div class="chart-container-small">
+            <canvas id="activityPolarChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-item">
+          <div class="chart-subtitle">Efficiency Gauge</div>
+          <div class="chart-container-small">
+            <canvas id="efficiencyDoughnutChart"></canvas>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -432,10 +497,10 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
   </div>
 
   <script>
-    // Agent State Pie Chart
+    // Agent State Doughnut Chart
     const agentStateCtx = document.getElementById('agentStateChart').getContext('2d');
     new Chart(agentStateCtx, {
-      type: 'pie',
+      type: 'doughnut',
       data: {
         labels: ${JSON.stringify(Object.keys(agentStates))},
         datasets: [{
@@ -453,11 +518,103 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: 'bottom',
-            labels: {
-              padding: 20,
-              font: { size: 12 }
-            }
+            display: false
+          }
+        }
+      }
+    });
+
+    // Performance Radar Chart
+    const performanceRadarCtx = document.getElementById('performanceRadarChart').getContext('2d');
+    new Chart(performanceRadarCtx, {
+      type: 'radar',
+      data: {
+        labels: ['Answer Rate', 'Efficiency', 'Response Time', 'Agent Utilization', 'Service Quality'],
+        datasets: [{
+          label: 'Current Shift',
+          data: [${answerRate}, ${Math.round(100 - parseFloat(abandonRate))}, ${Math.max(0, 100 - avgWaitTime)}, ${Math.round((totalAgents / Math.max(1, totalAgents)) * 100)}, ${answerRate}],
+          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+          borderColor: '#3b82f6',
+          borderWidth: 2,
+          pointBackgroundColor: '#3b82f6'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          r: {
+            beginAtZero: true,
+            max: 100
+          }
+        }
+      }
+    });
+
+    // Hourly Activity Polar Area Chart
+    const activityPolarCtx = document.getElementById('activityPolarChart').getContext('2d');
+    new Chart(activityPolarCtx, {
+      type: 'polarArea',
+      data: {
+        labels: ${JSON.stringify(hourlyPerformance.map(h => h.hour + ':00'))},
+        datasets: [{
+          data: ${JSON.stringify(hourlyPerformance.map(h => h.waiting + h.active))},
+          backgroundColor: [
+            'rgba(59, 130, 246, 0.5)',
+            'rgba(16, 185, 129, 0.5)',
+            'rgba(245, 158, 11, 0.5)',
+            'rgba(239, 68, 68, 0.5)',
+            'rgba(139, 92, 246, 0.5)',
+            'rgba(167, 139, 250, 0.5)',
+            'rgba(249, 115, 22, 0.5)',
+            'rgba(107, 114, 128, 0.5)'
+          ],
+          borderWidth: 1,
+          borderColor: '#fff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+
+    // Efficiency Gauge Chart
+    const efficiencyCtx = document.getElementById('efficiencyDoughnutChart').getContext('2d');
+    const efficiencyScore = Math.round(100 - parseFloat(abandonRate));
+    new Chart(efficiencyCtx, {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [efficiencyScore, 100 - efficiencyScore],
+          backgroundColor: [
+            efficiencyScore >= 90 ? '#10b981' : efficiencyScore >= 80 ? '#f59e0b' : '#ef4444',
+            '#e2e8f0'
+          ],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        rotation: -90,
+        circumference: 180,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            enabled: false
           }
         }
       }
