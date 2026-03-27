@@ -88,7 +88,8 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${esc(title)}</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
   <style>
     :root {
       --bg: #ffffff;
@@ -336,6 +337,267 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
       .charts-row { grid-template-columns: 1fr; }
       .kpi-grid { grid-template-columns: 1fr; }
     }
+    
+    /* Executive Summary Styles */
+    .executive-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .executive-card {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .executive-card.excellent {
+      border-color: var(--success);
+      background: linear-gradient(135deg, var(--card) 0%, rgba(16, 185, 129, 0.05) 100%);
+    }
+    
+    .executive-card.good {
+      border-color: var(--warning);
+      background: linear-gradient(135deg, var(--card) 0%, rgba(245, 158, 11, 0.05) 100%);
+    }
+    
+    .executive-card.poor {
+      border-color: var(--danger);
+      background: linear-gradient(135deg, var(--card) 0%, rgba(239, 68, 68, 0.05) 100%);
+    }
+    
+    .executive-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+    }
+    
+    .executive-icon {
+      font-size: 32px;
+      margin-bottom: 16px;
+    }
+    
+    .executive-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .executive-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    
+    .executive-value {
+      font-size: 36px;
+      font-weight: 900;
+      color: var(--text);
+      margin-bottom: 8px;
+      line-height: 1;
+    }
+    
+    .executive-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    
+    .executive-metrics {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .metric-pill {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    
+    .executive-breakdown {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    
+    .breakdown-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .breakdown-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .breakdown-value {
+      font-size: 16px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 8px;
+    }
+    
+    .breakdown-value.success {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+    
+    .breakdown-value.danger {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+    
+    .trend-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .trend-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: all 0.3s ease;
+    }
+    
+    .trend-fill.excellent {
+      background: linear-gradient(90deg, var(--success) 0%, #059669 100%);
+    }
+    
+    .trend-fill.good {
+      background: linear-gradient(90deg, var(--warning) 0%, #d97706 100%);
+    }
+    
+    .trend-fill.poor {
+      background: linear-gradient(90deg, var(--danger) 0%, #dc2626 100%);
+    }
+    
+    /* Performance Insights Styles */
+    .insights-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .insight-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    
+    .insight-box {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s ease;
+    }
+    
+    .insight-box.success {
+      border-color: var(--success);
+      background: linear-gradient(135deg, var(--card) 0%, rgba(16, 185, 129, 0.05) 100%);
+    }
+    
+    .insight-box.warning {
+      border-color: var(--warning);
+      background: linear-gradient(135deg, var(--card) 0%, rgba(245, 158, 11, 0.05) 100%);
+    }
+    
+    .insight-box.danger {
+      border-color: var(--danger);
+      background: linear-gradient(135deg, var(--card) 0%, rgba(239, 68, 68, 0.05) 100%);
+    }
+    
+    .insight-box.info {
+      border-color: var(--primary);
+      background: linear-gradient(135deg, var(--card) 0%, rgba(59, 130, 246, 0.05) 100%);
+    }
+    
+    .insight-box:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+    
+    .insight-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .insight-icon {
+      font-size: 24px;
+    }
+    
+    .insight-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .insight-content {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .insight-metric {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+    }
+    
+    .insight-detail {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .executive-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .insight-row {
+        grid-template-columns: 1fr;
+      }
+      
+      .executive-value {
+        font-size: 28px;
+      }
+      
+      .executive-metrics {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .executive-breakdown {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 <body>
@@ -376,6 +638,126 @@ function renderHtml({ shiftDate, shiftWindow, shiftHours, bucketsSeries, callflo
         <div class="kpi-item">
           <div class="kpi-value">${peakHour}:00</div>
           <div class="kpi-label">Peak Hour</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Executive Summary Dashboard -->
+    <div class="card">
+      <div class="card-title">🎯 Executive Summary</div>
+      <div class="executive-grid">
+        <div class="executive-card ${answerRate >= 95 ? 'excellent' : answerRate >= 90 ? 'good' : 'poor'}">
+          <div class="executive-icon">📞</div>
+          <div class="executive-content">
+            <div class="executive-title">Service Quality</div>
+            <div class="executive-value">${answerRate}%</div>
+            <div class="executive-desc">${answerRate >= 95 ? 'Excellent service quality - exceeding targets' : answerRate >= 90 ? 'Good service quality - meeting standards' : 'Service quality needs improvement'}</div>
+            <div class="executive-trend">
+              <div class="trend-bar">
+                <div class="trend-fill" style="width: ${answerRate}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="executive-card ${avgWaitTime <= 20 ? 'excellent' : avgWaitTime <= 30 ? 'good' : 'poor'}">
+          <div class="executive-icon">⏱️</div>
+          <div class="executive-content">
+            <div class="executive-title">Response Time</div>
+            <div class="executive-value">${formatDuration(avgWaitTime)}</div>
+            <div class="executive-desc">${avgWaitTime <= 20 ? 'Excellent response times - customers served quickly' : avgWaitTime <= 30 ? 'Acceptable response times' : 'Response times need attention'}</div>
+            <div class="executive-trend">
+              <div class="trend-bar">
+                <div class="trend-fill ${avgWaitTime <= 20 ? 'excellent' : avgWaitTime <= 30 ? 'good' : 'poor'}" style="width: ${Math.max(0, 100 - (avgWaitTime / 60 * 100))}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="executive-card">
+          <div class="executive-icon">👥</div>
+          <div class="executive-content">
+            <div class="executive-title">Team Performance</div>
+            <div class="executive-value">${totalAgents} Agents</div>
+            <div class="executive-desc">Peak activity at ${peakHour}:00 with ${totalAgents} agents</div>
+            <div class="executive-metrics">
+              <span class="metric-pill">Efficiency: ${Math.round(100 - parseFloat(abandonRate))}%</span>
+              <span class="metric-pill">Utilization: ${Math.round(((agentStates['In Call'] + agentStates['Ready']) / totalAgents) * 100)}%</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="executive-card">
+          <div class="executive-icon">📊</div>
+          <div class="executive-content">
+            <div class="executive-title">Call Volume</div>
+            <div class="executive-value">${formatNumber(totalCalls)}</div>
+            <div class="executive-desc">Total calls processed this shift</div>
+            <div class="executive-breakdown">
+              <div class="breakdown-item">
+                <span class="breakdown-label">Answered:</span>
+                <span class="breakdown-value success">${formatNumber(totalAnswered)}</span>
+              </div>
+              <div class="breakdown-item">
+                <span class="breakdown-label">Abandoned:</span>
+                <span class="breakdown-value danger">${formatNumber(totalCalls - totalAnswered)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance Insights -->
+    <div class="card">
+      <div class="card-title">💡 Performance Insights</div>
+      <div class="insights-container">
+        <div class="insight-row">
+          <div class="insight-box success">
+            <div class="insight-header">
+              <div class="insight-icon">✅</div>
+              <div class="insight-title">Strength</div>
+            </div>
+            <div class="insight-content">
+              <div class="insight-metric">${answerRate >= 95 ? 'Service Excellence' : 'Consistent Performance'}</div>
+              <div class="insight-detail">${answerRate >= 95 ? `Answer rate of ${answerRate}% exceeds industry standard of 90%` : 'Stable performance throughout shift hours'}</div>
+            </div>
+          </div>
+          
+          <div class="insight-box ${avgWaitTime <= 20 ? 'success' : avgWaitTime <= 30 ? 'warning' : 'danger'}">
+            <div class="insight-header">
+              <div class="insight-icon">${avgWaitTime <= 20 ? '🎯' : avgWaitTime <= 30 ? '⚠️' : '🚨'}</div>
+              <div class="insight-title">Opportunity</div>
+            </div>
+            <div class="insight-content">
+              <div class="insight-metric">${avgWaitTime <= 20 ? 'Optimal Response' : avgWaitTime <= 30 ? 'Response Optimization' : 'Wait Time Reduction'}</div>
+              <div class="insight-detail">${avgWaitTime <= 20 ? 'Average wait time of ' + formatDuration(avgWaitTime) + ' is excellent' : avgWaitTime <= 30 ? 'Reduce wait times from ' + formatDuration(avgWaitTime) + ' to under 20 seconds' : 'Critical need to reduce wait times from ' + formatDuration(avgWaitTime)}</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="insight-row">
+          <div class="insight-box info">
+            <div class="insight-header">
+              <div class="insight-icon">📈</div>
+              <div class="insight-title">Trend</div>
+            </div>
+            <div class="insight-content">
+              <div class="insight-metric">Peak Performance</div>
+              <div class="insight-detail">Highest activity recorded at ${peakHour}:00 with maximum agent utilization</div>
+            </div>
+          </div>
+          
+          <div class="insight-box info">
+            <div class="insight-header">
+              <div class="insight-icon">🎯</div>
+              <div class="insight-title">Target</div>
+            </div>
+            <div class="insight-content">
+              <div class="insight-metric">Next Shift Goal</div>
+              <div class="insight-detail">${answerRate >= 95 ? 'Maintain excellent service levels' : 'Improve answer rate to 95% and reduce wait times'}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

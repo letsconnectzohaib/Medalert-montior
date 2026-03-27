@@ -514,6 +514,335 @@ textarea {
     display: none;
 }
 
+/* ─── Enhanced Analytics Cards Styles ──────────────────────────────────── */
+.enhanced-stat-card {
+  background: linear-gradient(135deg, var(--panel) 0%, var(--card) 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.enhanced-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+}
+
+.enhanced-stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  border-color: var(--primary);
+}
+
+.card-header {
+  display: flex;
+  justify-content: between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.card-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-badge.success {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.card-badge.warning {
+  background: var(--warn-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+.card-badge.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.primary-metric {
+  text-align: center;
+  padding: 16px;
+  background: var(--card);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.metric-value {
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--text);
+  margin-bottom: 4px;
+  line-height: 1;
+}
+
+.metric-value.secondary {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.metric-value.success {
+  color: var(--success);
+}
+
+.metric-value.warning {
+  color: var(--warning);
+}
+
+.metric-value.danger {
+  color: var(--danger);
+}
+
+.metric-value.primary {
+  color: var(--primary);
+}
+
+.metric-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-label.small {
+  font-size: 10px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.metric-item {
+  text-align: center;
+  padding: 12px;
+  background: var(--panel);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.metric-group {
+  text-align: center;
+}
+
+.metric-sublabel {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.card-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.footer-text {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.enhanced-compare-card {
+  background: linear-gradient(135deg, var(--panel) 0%, var(--card) 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all 0.3s ease;
+}
+
+.enhanced-compare-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.trend-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.trend-indicator.up {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.trend-indicator.down {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.trend-indicator.stable {
+  background: var(--muted-bg);
+  color: var(--muted);
+  border: 1px solid var(--muted);
+}
+
+.trend-icon {
+  font-size: 14px;
+}
+
+.trend-text {
+  font-size: 11px;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.compare-item {
+  text-align: center;
+}
+
+.compare-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.compare-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.compare-value.current {
+  color: var(--primary);
+}
+
+.compare-arrow {
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.enhanced-callflow-card {
+  background: linear-gradient(135deg, var(--panel) 0%, var(--card) 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all 0.3s ease;
+}
+
+.enhanced-callflow-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.service-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.service-badge.excellent {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.service-badge.good {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+.service-badge.poor {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.callflow-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.enhanced-callflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .metric-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .comparison-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .compare-arrow {
+    transform: rotate(90deg);
+  }
+  
+  .enhanced-callflow-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .enhanced-stat-card,
+  .enhanced-compare-card,
+  .enhanced-callflow-card {
+    padding: 16px;
+  }
+}
+
 /* ─── Enhanced Shift Analytics Styles ──────────────────────────────────── */
 .shiftHeader {
   background: linear-gradient(135deg, var(--panel) 0%, rgba(0,0,0,0.3) 100%);
